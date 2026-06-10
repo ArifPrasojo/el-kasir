@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getPaginationParams, paginatedResponse } from "@/lib/pagination"
+import { getSearchParams } from "@/lib/api-client"
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -11,25 +12,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const { searchParams } = new URL(request.url)
-  const { skip, take, page, limit } = getPaginationParams(searchParams)
-  const entity = searchParams.get("entity") || ""
-  const action = searchParams.get("action") || ""
+  try {
+    const searchParams = getSearchParams(request.url)
+    const { skip, take, page, limit } = getPaginationParams(searchParams)
+    const entity = searchParams.get("entity") || ""
+    const action = searchParams.get("action") || ""
 
-  const where: Record<string, unknown> = {}
-  if (entity) where.entity = entity
-  if (action) where.action = action
+    const where: Record<string, unknown> = {}
+    if (entity) where.entity = entity
+    if (action) where.action = action
 
-  const [logs, total] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      include: { user: { select: { name: true, email: true } } },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take,
-    }),
-    prisma.auditLog.count({ where }),
-  ])
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: { user: { select: { name: true, email: true } } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      prisma.auditLog.count({ where }),
+    ])
 
-  return NextResponse.json(paginatedResponse(logs, total, page, limit))
+    return NextResponse.json(paginatedResponse(logs, total, page, limit))
+  } catch (error) {
+    console.error("GET /api/audit error:", error)
+    return NextResponse.json({ error: "Gagal memuat data audit log" }, { status: 500 })
+  }
 }

@@ -18,6 +18,7 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
+          include: { branch: { select: { id: true, name: true } } },
         })
 
         if (!user) {
@@ -38,6 +39,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          branchId: user.branchId ?? undefined,
+          branchName: user.branch?.name ?? undefined,
         }
       },
     }),
@@ -51,6 +54,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = (user as unknown as { role: string }).role
         token.id = user.id
+        token.branchId = (user as unknown as { branchId?: string }).branchId
+        token.branchName = (user as unknown as { branchName?: string }).branchName
       }
       return token
     },
@@ -58,6 +63,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as { role?: string }).role = token.role as string
         (session.user as { id?: string }).id = token.id as string
+        ;(session.user as { branchId?: string }).branchId = token.branchId as string | undefined
+        ;(session.user as { branchName?: string }).branchName = token.branchName as string | undefined
       }
       return session
     },

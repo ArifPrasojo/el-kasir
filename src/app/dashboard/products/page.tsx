@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2, Search } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useToast } from "@/components/Toast"
 
 interface Product {
   id: string
@@ -24,6 +25,7 @@ interface Category {
 
 export default function ProductsPage() {
   const { data: session } = useSession()
+  const { success, error: toastError } = useToast()
   const isAdmin = (session?.user as { role?: string })?.role === "ADMIN"
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -76,19 +78,39 @@ export default function ProductsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const method = editing ? "PUT" : "POST"
-    await fetch("/api/products", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, id: editing?.id }),
-    })
-    resetForm()
-    fetchData()
+    try {
+      const res = await fetch("/api/products", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, id: editing?.id }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menyimpan produk")
+        return
+      }
+      success(editing ? "Produk berhasil diupdate" : "Produk berhasil ditambahkan")
+      resetForm()
+      fetchData()
+    } catch {
+      toastError("Gagal menyimpan produk")
+    }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin hapus produk ini?")) return
-    await fetch(`/api/products?id=${id}`, { method: "DELETE" })
-    fetchData()
+    try {
+      const res = await fetch(`/api/products?id=${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menghapus produk")
+        return
+      }
+      success("Produk berhasil dihapus")
+      fetchData()
+    } catch {
+      toastError("Gagal menghapus produk")
+    }
   }
 
   if (loading) {

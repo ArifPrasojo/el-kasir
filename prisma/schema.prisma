@@ -134,6 +134,7 @@ model Supplier {
   isActive        Boolean         @default(true)
   createdAt       DateTime        @default(now())
   purchaseOrders  PurchaseOrder[]
+  supplierMaterials SupplierMaterial[]
 }
 
 model PurchaseOrder {
@@ -179,6 +180,20 @@ model RawMaterial {
   isActive         Boolean             @default(true)
   createdAt        DateTime            @default(now())
   purchaseOrderItems PurchaseOrderItem[]
+  supplierMaterials  SupplierMaterial[]
+}
+
+// Relasi many-to-many: bahan baku apa saja yang disediakan oleh supplier
+model SupplierMaterial {
+  id            String      @id @default(cuid())
+  supplierId    String
+  supplier      Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  /// Harga khusus dari supplier ini untuk bahan baku ini
+  pricePerUnit  Float       @default(0)
+
+  @@unique([supplierId, rawMaterialId])
 }
 
 model Customer {

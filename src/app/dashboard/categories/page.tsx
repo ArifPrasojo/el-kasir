@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2, X, Check } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useToast } from "@/components/Toast"
 
 interface Category {
   id: string
@@ -14,6 +15,7 @@ interface Category {
 
 export default function CategoriesPage() {
   const { data: session } = useSession()
+  const { success, error: toastError } = useToast()
   const isAdmin = (session?.user as { role?: string })?.role === "ADMIN"
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,19 +49,39 @@ export default function CategoriesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await fetch("/api/categories", {
-      method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, id: editing?.id }),
-    })
-    resetForm()
-    fetchCategories()
+    try {
+      const res = await fetch("/api/categories", {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, id: editing?.id }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menyimpan kategori")
+        return
+      }
+      success(editing ? "Kategori berhasil diupdate" : "Kategori berhasil ditambahkan")
+      resetForm()
+      fetchCategories()
+    } catch {
+      toastError("Gagal menyimpan kategori")
+    }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin hapus kategori ini?")) return
-    await fetch(`/api/categories?id=${id}`, { method: "DELETE" })
-    fetchCategories()
+    try {
+      const res = await fetch(`/api/categories?id=${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menghapus kategori")
+        return
+      }
+      success("Kategori berhasil dihapus")
+      fetchCategories()
+    } catch {
+      toastError("Gagal menghapus kategori")
+    }
   }
 
   if (loading) {

@@ -100,8 +100,8 @@ export default function LoginPage() {
         <div className="mt-5 p-3 bg-gray-50 rounded-lg">
           <p className="text-xs text-gray-500 font-medium mb-1.5">Akun Demo:</p>
           <div className="text-xs text-gray-600 space-y-0.5">
-            <p>Admin: admin@elkasir.com / admin123</p>
-            <p>Kasir: kasir@elkasir.com / kasir123</p>
+            <p>Admin: admin@kopinusantara.id / admin123</p>
+            <p>Kasir: kasir2@kopinusantara.id / kasir123</p>
           </div>
         </div>
       </div>

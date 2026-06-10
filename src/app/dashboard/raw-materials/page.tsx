@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Plus, Pencil, Trash2, Package, Info, AlertTriangle } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useToast } from "@/components/Toast"
 
 interface RawMaterial {
   id: string; name: string; unit: string; stock: number; costPerUnit: number; minStock: number; isActive: boolean; createdAt: string
@@ -10,6 +11,7 @@ interface RawMaterial {
 }
 
 export default function RawMaterialsPage() {
+  const { success, error: toastError } = useToast()
   const [materials, setMaterials] = useState<RawMaterial[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -41,18 +43,38 @@ export default function RawMaterialsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await fetch("/api/raw-materials", {
-      method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, id: editing?.id }),
-    })
-    resetForm(); fetchMaterials()
+    try {
+      const res = await fetch("/api/raw-materials", {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, id: editing?.id }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menyimpan bahan baku")
+        return
+      }
+      success(editing ? "Bahan baku berhasil diupdate" : "Bahan baku berhasil ditambahkan")
+      resetForm(); fetchMaterials()
+    } catch {
+      toastError("Gagal menyimpan bahan baku")
+    }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin hapus bahan baku ini?")) return
-    await fetch(`/api/raw-materials?id=${id}`, { method: "DELETE" })
-    fetchMaterials()
+    try {
+      const res = await fetch(`/api/raw-materials?id=${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menghapus bahan baku")
+        return
+      }
+      success("Bahan baku berhasil dihapus")
+      fetchMaterials()
+    } catch {
+      toastError("Gagal menghapus bahan baku")
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>

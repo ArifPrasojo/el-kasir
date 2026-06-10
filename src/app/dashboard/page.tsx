@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react"
 import {
-  DollarSign, ShoppingCart, Package, AlertTriangle, TrendingUp, TrendingDown,
-  Calendar, Clock, BarChart3, ArrowUpRight, ArrowDownRight, Layers
+  DollarSign, ShoppingCart, Package, AlertTriangle, TrendingUp,
+  Calendar, Clock, BarChart3, ArrowUpRight, ArrowDownRight, Layers, MapPin, User
 } from "lucide-react"
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
 import { apiFetch } from "@/lib/api-client"
+import { useSession } from "next-auth/react"
 
 interface DashboardData {
   todaySales: number; yesterdaySales: number; salesChange: number
@@ -34,6 +35,10 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [chartTab, setChartTab] = useState<"revenue" | "profit">("revenue")
+  const { data: session } = useSession()
+
+  const sessionUser = session?.user as { role?: string; branchName?: string; name?: string } | undefined
+  const isAdmin = sessionUser?.role === "ADMIN"
 
   useEffect(() => {
     apiFetch<DashboardData>("/api/reports?type=dashboard")
@@ -70,10 +75,29 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Dashboard Analytics</h1>
-        <div className="text-xs text-gray-400 hidden sm:block">
-          <Calendar className="w-3.5 h-3.5 inline mr-1" />
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+            {isAdmin ? "Dashboard Analytics" : "Dashboard Saya"}
+          </h1>
+          {!isAdmin && (
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                <User className="w-4 h-4" />
+                <span>{sessionUser?.name}</span>
+              </div>
+              {sessionUser?.branchName && (
+                <div className="flex items-center gap-1.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span className="font-medium">{sessionUser.branchName}</span>
+                </div>
+              )}
+              <span className="text-xs text-gray-400">Data hanya menampilkan aktivitas Anda</span>
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-gray-400 hidden sm:flex items-center gap-1">
+          <Calendar className="w-3.5 h-3.5" />
           {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </div>
       </div>

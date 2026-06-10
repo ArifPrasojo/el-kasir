@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Plus, Pencil, Trash2, Building2, Users, Info } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useToast } from "@/components/Toast"
 
 interface Branch {
   id: string; name: string; address: string; phone: string; isActive: boolean; createdAt: string
@@ -11,6 +12,7 @@ interface Branch {
 interface User { id: string; name: string; email: string; branchId: string | null }
 
 export default function BranchesPage() {
+  const { success, error: toastError } = useToast()
   const [branches, setBranches] = useState<Branch[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,21 +50,38 @@ export default function BranchesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Create/update branch
-    await fetch("/api/branches", {
-      method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, id: editing?.id }),
-    })
-    // Assign users to branch (would need a batch update API)
-    // For now, the branch is created and users can be assigned individually
-    resetForm(); fetchData()
+    try {
+      const res = await fetch("/api/branches", {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, id: editing?.id }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menyimpan cabang")
+        return
+      }
+      success(editing ? "Cabang berhasil diupdate" : "Cabang berhasil ditambahkan")
+      resetForm(); fetchData()
+    } catch {
+      toastError("Gagal menyimpan cabang")
+    }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin hapus cabang ini?")) return
-    await fetch(`/api/branches?id=${id}`, { method: "DELETE" })
-    fetchData()
+    try {
+      const res = await fetch(`/api/branches?id=${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        toastError(data.error || "Gagal menghapus cabang")
+        return
+      }
+      success("Cabang berhasil dihapus")
+      fetchData()
+    } catch {
+      toastError("Gagal menghapus cabang")
+    }
   }
 
   const toggleUser = (userId: string) => {

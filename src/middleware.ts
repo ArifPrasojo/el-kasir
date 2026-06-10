@@ -28,6 +28,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
+  // Shifts feature removed - redirect to dashboard
+  if (pathname.startsWith("/dashboard/shifts")) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
+  }
+
+  // Cashier access control - restrict admin-only pages
+  const cashierRestrictedPaths = [
+    "/dashboard/products",
+    "/dashboard/categories",
+    "/dashboard/suppliers",
+    "/dashboard/raw-materials",
+    "/dashboard/purchase-orders",
+  ]
+  if (
+    cashierRestrictedPaths.some((p) => pathname.startsWith(p)) &&
+    token.role !== "ADMIN"
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
+  }
+
   return NextResponse.next()
 }
 

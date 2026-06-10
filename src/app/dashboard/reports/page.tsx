@@ -1,18 +1,27 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Calendar, DollarSign, TrendingUp, ShoppingBag } from "lucide-react"
+import { Calendar, DollarSign, TrendingUp, ShoppingBag, MapPin } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
+import { useSession } from "next-auth/react"
 
 interface ReportData {
   transactions: {
     id: string; transactionNumber: string; totalAmount: number; createdAt: string
-    user: { name: string }; items: { productName: string; quantity: number; subtotal: number }[]
+    user: { name: string }
+    customer?: { name: string } | null
+    items: { productName: string; quantity: number; subtotal: number }[]
   }[]
   totalRevenue: number; totalTransactions: number; totalProfit: number; totalCost: number
 }
 
+type SessionUser = { role?: string; branchName?: string }
+
 export default function ReportsPage() {
+  const { data: session } = useSession()
+  const sessionUser = session?.user as SessionUser | undefined
+  const isAdmin = sessionUser?.role === "ADMIN"
+
   const today = new Date().toISOString().split("T")[0]
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
@@ -21,7 +30,7 @@ export default function ReportsPage() {
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const formatCurrency = (amount: number) =>
+  const fc = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
   const fetchReport = async () => {
@@ -39,7 +48,18 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Laporan Penjualan</h1>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+          {isAdmin ? "Laporan Penjualan" : "Laporan Saya"}
+        </h1>
+        {!isAdmin && sessionUser?.branchName && (
+          <div className="flex items-center gap-1.5 mt-1 text-sm text-emerald-700">
+            <MapPin className="w-3.5 h-3.5" />
+            <span>{sessionUser.branchName}</span>
+            <span className="text-gray-400">· Data hanya transaksi Anda</span>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-stretch sm:items-end">
         <div className="flex-1 sm:flex-none">
@@ -68,7 +88,7 @@ export default function ReportsPage() {
                 <div className="bg-green-100 p-1.5 sm:p-2 rounded-lg"><DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" /></div>
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm text-gray-500 truncate">Pendapatan</p>
-                  <p className="text-sm sm:text-xl font-bold truncate">{formatCurrency(report.totalRevenue)}</p>
+                  <p className="text-sm sm:text-xl font-bold truncate">{fc(report.totalRevenue)}</p>
                 </div>
               </div>
             </div>
@@ -86,7 +106,7 @@ export default function ReportsPage() {
                 <div className="bg-red-100 p-1.5 sm:p-2 rounded-lg"><DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" /></div>
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm text-gray-500 truncate">Modal</p>
-                  <p className="text-sm sm:text-xl font-bold truncate">{formatCurrency(report.totalCost)}</p>
+                  <p className="text-sm sm:text-xl font-bold truncate">{fc(report.totalCost)}</p>
                 </div>
               </div>
             </div>
@@ -96,7 +116,7 @@ export default function ReportsPage() {
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm text-gray-500 truncate">Keuntungan</p>
                   <p className={`text-sm sm:text-xl font-bold truncate ${report.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {formatCurrency(report.totalProfit)}
+                    {fc(report.totalProfit)}
                   </p>
                 </div>
               </div>
@@ -114,7 +134,8 @@ export default function ReportsPage() {
                   <tr>
                     <th className="text-left px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">No. Transaksi</th>
                     <th className="text-left px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">Tanggal</th>
-                    <th className="text-left px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">Kasir</th>
+                    {isAdmin && <th className="text-left px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">Kasir</th>}
+                    <th className="text-left px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">Customer</th>
                     <th className="text-center px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">Item</th>
                     <th className="text-right px-4 lg:px-6 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
                   </tr>
@@ -124,13 +145,14 @@ export default function ReportsPage() {
                     <tr key={tx.id} className="hover:bg-gray-50">
                       <td className="px-4 lg:px-6 py-4 text-sm font-medium">{tx.transactionNumber}</td>
                       <td className="px-4 lg:px-6 py-4 text-sm text-gray-600">{new Date(tx.createdAt).toLocaleString("id-ID")}</td>
-                      <td className="px-4 lg:px-6 py-4 text-sm text-gray-600">{tx.user.name}</td>
+                      {isAdmin && <td className="px-4 lg:px-6 py-4 text-sm text-gray-600">{tx.user.name}</td>}
+                      <td className="px-4 lg:px-6 py-4 text-sm text-gray-600">{tx.customer?.name || <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 lg:px-6 py-4 text-center text-sm">{tx.items.length}</td>
-                      <td className="px-4 lg:px-6 py-4 text-right text-sm font-semibold">{formatCurrency(tx.totalAmount)}</td>
+                      <td className="px-4 lg:px-6 py-4 text-right text-sm font-semibold">{fc(tx.totalAmount)}</td>
                     </tr>
                   ))}
                   {report.transactions.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400">Tidak ada transaksi pada periode ini</td></tr>
+                    <tr><td colSpan={isAdmin ? 6 : 5} className="px-6 py-12 text-center text-gray-400">Tidak ada transaksi pada periode ini</td></tr>
                   )}
                 </tbody>
               </table>
@@ -149,10 +171,13 @@ export default function ReportsPage() {
                     <p className="font-medium text-gray-800 text-sm">{tx.transactionNumber}</p>
                     <p className="text-xs text-gray-500">{new Date(tx.createdAt).toLocaleString("id-ID")}</p>
                   </div>
-                  <p className="font-bold text-blue-600 text-sm">{formatCurrency(tx.totalAmount)}</p>
+                  <p className="font-bold text-blue-600 text-sm">{fc(tx.totalAmount)}</p>
                 </div>
                 <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-gray-500">
-                  <span>Kasir: {tx.user.name}</span>
+                  <span className="space-y-0.5">
+                    {isAdmin && <span>Kasir: {tx.user.name}</span>}
+                    {tx.customer && <span className="block">Customer: {tx.customer.name}</span>}
+                  </span>
                   <span>{tx.items.length} item</span>
                 </div>
               </div>

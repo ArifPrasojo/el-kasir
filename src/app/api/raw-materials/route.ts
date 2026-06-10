@@ -3,16 +3,22 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sanitizeString, sanitizeNumber } from "@/lib/validate"
+import { getSearchParams } from "@/lib/api-client"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const materials = await prisma.rawMaterial.findMany({
-    include: { branch: { select: { name: true } } },
-    orderBy: { name: "asc" },
-  })
-  return NextResponse.json(materials)
+  try {
+    const materials = await prisma.rawMaterial.findMany({
+      include: { branch: { select: { name: true } } },
+      orderBy: { name: "asc" },
+    })
+    return NextResponse.json(materials)
+  } catch (error) {
+    console.error("GET /api/raw-materials error:", error)
+    return NextResponse.json({ error: "Gagal memuat data bahan baku" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -69,7 +75,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const { searchParams } = new URL(request.url)
+  const searchParams = getSearchParams(request.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
 
