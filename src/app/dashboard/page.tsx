@@ -9,6 +9,7 @@ import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts"
+import { apiFetch } from "@/lib/api-client"
 
 interface DashboardData {
   todaySales: number; yesterdaySales: number; salesChange: number
@@ -35,8 +36,7 @@ export default function DashboardPage() {
   const [chartTab, setChartTab] = useState<"revenue" | "profit">("revenue")
 
   useEffect(() => {
-    fetch("/api/reports?type=dashboard")
-      .then((res) => res.json())
+    apiFetch<DashboardData>("/api/reports?type=dashboard")
       .then((d) => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])

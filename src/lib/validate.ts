@@ -29,6 +29,18 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
+ * Validate password complexity for enterprise
+ * Min 8 chars, at least 1 uppercase, 1 number, 1 special char
+ */
+export function isValidPassword(password: string): { valid: boolean; message: string } {
+  if (password.length < 8) return { valid: false, message: "Password minimal 8 karakter" }
+  if (!/[A-Z]/.test(password)) return { valid: false, message: "Password harus mengandung huruf kapital" }
+  if (!/[0-9]/.test(password)) return { valid: false, message: "Password harus mengandung angka" }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"|,.<>\/?]/.test(password)) return { valid: false, message: "Password harus mengandung karakter spesial" }
+  return { valid: true, message: "" }
+}
+
+/**
  * Validate that a string is a valid cuid() ID
  */
 export function isValidId(id: unknown): boolean {

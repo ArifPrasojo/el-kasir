@@ -349,92 +349,199 @@ model TransactionItem {
 
 ---
 
-## Fitur Utama
+## Fitur Utama & Panduan Penggunaan
 
-### 1. Dashboard Analytics
-
-![Dashboard Analytics](public/screenshots/dashboard.png)
-
-Dashboard lengkap dengan analisis penjualan mendalam:
-- **KPI Cards**: Penjualan hari ini (dengan % perubahan vs kemarin), transaksi, penjualan bulanan, estimasi profit 30 hari
-- **Tren Penjualan 30 Hari**: Area chart dengan toggle Pendapatan/Profit
-- **Penjualan per Kategori**: Donut chart dengan persentase breakdown
-- **Produk Terlaris**: Tabel top 10 produk dengan qty, revenue, profit, dan margin %
-- **Distribusi Penjualan per Jam**: Bar chart penjualan per jam (06:00-22:00)
-- **Transaksi Terbaru**: 5 transaksi terakhir dengan detail kasir dan item
-- **Peringatan Stok Rendah**: Notifikasi produk dengan stok <=5
-
-### 2. Authentication & Authorization
+### 1. Login & Pemilihan Cabang
 
 ![Login Page](public/screenshots/login.png)
 
-- Login dengan email dan password
-- Password di-hash menggunakan bcrypt
-- JWT session management via NextAuth.js
-- Role-based access control:
-  - **Admin**: Akses semua fitur termasuk manajemen user
-  - **Kasir**: Akses POS, produk, dan transaksi sendiri
+Saat login, user memilih **cabang mana mereka bekerja hari ini**. Ini memastikan transaksi tercatat di cabang yang benar.
 
-### 2. Dashboard
-- Kartu ringkasan: penjualan hari ini, jumlah transaksi, total produk, stok rendah
-- Grafik batang penjualan 7 hari terakhir (Recharts)
-- Tabel produk terlaris
-- Peringatan stok rendah
+**Flow:**
+1. Masukkan email dan password
+2. Pilih cabang tempat bekerja
+3. Klik "Masuk" → Redirect ke Dashboard
+
+**Akun Demo:**
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@elkasir.com | admin123 |
+| Kasir | kasir@elkasir.com | kasir123 |
+
+**Role:**
+- **Admin**: Akses semua fitur (Cabang, Audit Log, User, dll)
+- **Kasir**: Akses POS, Produk, Transaksi, Shift
+
+---
+
+### 2. Dashboard Analytics
+
+![Dashboard Analytics](public/screenshots/dashboard.png)
+
+Dashboard menampilkan ringkasan bisnis secara real-time.
+
+**Yang ditampilkan:**
+- KPI Cards: Penjualan hari ini, transaksi, penjualan bulanan, estimasi profit
+- Tren Penjualan 30 Hari (area chart dengan toggle Pendapatan/Profit)
+- Penjualan per Kategori (donut chart)
+- Produk Terlaris (tabel dengan margin %)
+- Distribusi Penjualan per Jam
+- Transaksi Terbaru
+- Peringatan Stok Rendah
+
+---
 
 ### 3. Kasir / POS (Point of Sale)
 
 ![POS / Kasir](public/screenshots/pos.png)
 
-- Grid produk dengan pencarian dan filter kategori
-- Keranjang belanja dengan kontrol kuantitas (+/-)
-- Input pembayaran dengan format Rupiah otomatis (prefix "Rp")
-- Kalkulasi kembalian otomatis
-- Struk/receipt yang bisa dicetak
-- Validasi stok real-time
-- Auto-generate nomor transaksi (format: TRX YYYYMMDD-0001)
+Halaman utama untuk bertransaksi. Produk ditampilkan dalam grid, klik untuk menambah ke keranjang.
 
-### 4. Manajemen Produk
+**Flow:**
+1. Buka Shift terlebih dahulu (lihat fitur Shift Kasir)
+2. Buka menu "Kasir / POS"
+3. Cari/filter produk → Klik produk untuk tambah ke keranjang
+4. Atur jumlah (+/-) di panel keranjang kanan
+5. Masukkan jumlah bayar (format Rp otomatis)
+6. Klik "Bayar" → Struk muncul otomatis
+7. Cetak struk (format thermal 80mm)
+
+**Fitur:** Input Rp otomatis, kalkulasi kembalian, cetak struk thermal, validasi stok
+
+---
+
+### 4. Manajemen Cabang (Admin Only)
+
+**Fungsi:** Mengelola lokasi toko/outlet. Setiap cabang memiliki produk, kasir, dan data terpisah.
+
+**Flow:**
+1. Buat Cabang baru → Input nama, alamat, telepon
+2. Tugaskan User ke cabang tersebut (centang user yang ditugaskan)
+3. Tambah Produk per cabang
+4. Kasir login dan memilih cabang tersebut
+
+**Siapa yang bisa akses:** Hanya Admin
+
+---
+
+### 5. Shift Kasir
+
+**Fungsi:** Mengatur jadwal kerja kasir dan melacak uang di laci kasir per shift.
+
+**Tipe Shift:**
+- **Shift Pagi** (06:00 - 18:00) 
+- **Shift Malam** (18:00 - 06:00)
+
+**Flow:**
+1. **Buka Shift** → Pilih tipe (Pagi/Malam) → Input saldo awal (uang di laci)
+2. **Bertransaksi** → Sistem otomatis menghitung total penjualan
+3. **Tutup Shift** → Input uang aktual di laci → Sistem hitung selisih
+4. **Laporan** → Lihat apakah uang sesuai atau ada selisih
+
+**Catatan:** Kasir HARUS buka shift sebelum bisa bertransaksi. Satu user = satu shift aktif.
+
+---
+
+### 6. Supplier
+
+**Fungsi:** Mendaftar pemasok/perusahaan yang menyediakan barang untuk toko.
+
+**Flow:**
+1. Tambah Supplier → Input nama perusahaan, kontak, alamat
+2. Supplier terdaftar → Bisa dipilih saat membuat Purchase Order
+3. Lihat jumlah PO per supplier di tabel
+
+**Hubungan:** Supplier → Purchase Order → Stok Produk
+
+---
+
+### 7. Purchase Order (PO)
+
+**Fungsi:** Surat pesanan resmi ke supplier untuk membeli barang. Data produk dan supplier diambil dari yang sudah terdaftar.
+
+**Flow Lengkap:**
+1. **Buat PO (Draft)** → Pilih Supplier → Tambah item produk yang ingin dipesan → Input jumlah & harga modal
+2. **Kirim ke Supplier (Sent)** → Klik "Kirim" pada PO yang sudah dibuat
+3. **Barang Datang (Received)** → Klik "Terima" → Konfirmasi → **Stok produk otomatis bertambah**
+4. **Batal (Cancelled)** → Jika PO dibatalkan
+
+**Status PO:**
+| Status | Keterangan |
+|--------|-----------|
+| Draft | PO baru dibuat, belum dikirim |
+| Sent | PO sudah dikirim ke supplier |
+| Received | Barang sudah diterima, stok bertambah |
+| Cancelled | PO dibatalkan |
+
+---
+
+### 8. Customer & Loyalty
+
+**Fungsi:** Mendaftar pelanggan dan mengelola program loyalty/poin.
+
+**Flow:**
+1. Tambah Customer → Input nama, telepon, email
+2. Customer terdaftar → Bisa dipilih saat checkout di POS
+3. Setiap transaksi → Poin otomatis bertambah (sesuai Loyalty Rule)
+4. Lihat total belanja dan poin per customer
+
+**Loyalty Rule:** 1 poin per Rp 10.000 belanja (bisa dikonfigurasi)
+
+---
+
+### 9. Manajemen Produk (Admin Only)
 
 ![Manajemen Produk](public/screenshots/products.png)
 
-- CRUD produk (Admin only)
-- Filter berdasarkan kategori dan pencarian
-- Tracking stok dengan peringatan stok rendah (<=5)
-- Toggle aktif/nonaktif produk
-- Harga jual dan harga modal untuk perhitungan keuntungan
+**Flow:**
+1. Buat Kategori dulu (Makanan, Minuman, dll)
+2. Tambah Produk → Input nama, harga jual, harga modal, stok, kategori
+3. Produk aktif → Muncul di POS untuk dijual
+4. Stok berkurang otomatis saat ada transaksi
+5. Stok bertambah otomatis saat PO diterima
 
-### 5. Manajemen Kategori
-- CRUD kategori (Admin only)
-- Jumlah produk per kategori
-- Relasi satu-ke-banyak dengan produk
+---
 
-### 6. Riwayat Transaksi
+### 10. Riwayat Transaksi
 
 ![Riwayat Transaksi](public/screenshots/transactions.png)
 
-- Daftar semua transaksi dengan filter tanggal
-- Detail transaksi: items, jumlah, kasir
-- Nomor transaksi unik untuk tracking
+Daftar semua transaksi yang pernah terjadi dengan filter tanggal.
 
-### 7. Laporan Penjualan
+**Fitur:** Filter tanggal, detail per transaksi (item, kasir, jumlah), nomor transaksi unik
+
+---
+
+### 11. Laporan Penjualan
 
 ![Laporan Penjualan](public/screenshots/reports.png)
 
-- Filter berdasarkan rentang tanggal
-- Ringkasan: total pendapatan, transaksi, modal, keuntungan
+**Fitur:**
+- Filter rentang tanggal
+- Ringkasan: Total Pendapatan, Transaksi, Modal, Keuntungan
 - Detail per transaksi
-- Perhitungan keuntungan otomatis (pendapatan - modal)
+- Keuntungan dihitung otomatis (Pendapatan - Modal)
 
-### 8. Manajemen User (Admin Only)
-- CRUD user
-- Role assignment (Admin/Kasir)
-- Reset password
+---
 
-### 9. Responsive Design
-- Fully responsive di semua halaman
-- Mobile: sidebar hamburger menu, card layout untuk tabel
-- POS: floating cart button di mobile, slide-in cart overlay
-- Dashboard: 2-column cards di mobile, 4-column di desktop
+### 12. Audit Log (Admin Only)
+
+**Fungsi:** Mencatat SEMUA aktivitas penting di sistem secara otomatis: siapa, apa, kapan, dari IP mana.
+
+**Contoh yang tercatat:**
+- Admin menambah/mengedit/menghapus produk, cabang, user
+- PO dibuat, dikirim, diterima
+- Login berhasil/gagal
+
+**Kegunaan:** Keamanan, pelacakan perubahan, investigasi masalah
+
+**Fitur:** Filter berdasarkan entity (Produk, User, dll) dan aksi (Create, Update, Delete), pagination
+
+---
+
+### 13. Manajemen User (Admin Only)
+
+**Fitur:** CRUD user, role assignment (Admin/Kasir), password complexity (min 8 char, kapital, angka, spesial)
 
 ---
 

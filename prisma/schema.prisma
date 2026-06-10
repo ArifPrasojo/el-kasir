@@ -4,22 +4,64 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
+
+// ============ ENUMS ============
 
 enum Role {
   ADMIN
   CASHIER
 }
 
+enum POStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  CANCELLED
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum ShiftType {
+  PAGI
+  MALAM
+}
+
+// ============ CORE MODELS ============
+
+model Branch {
+  id              String    @id @default(cuid())
+  name            String
+  address         String    @default("")
+  phone           String    @default("")
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  users           User[]
+  products        Product[]
+  transactions    Transaction[]
+  suppliers       Supplier[]
+  customers       Customer[]
+  purchaseOrders  PurchaseOrder[]
+  cashierShifts   CashierShift[]
+}
+
 model User {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  password      String
-  role          Role     @default(CASHIER)
-  createdAt     DateTime @default(now())
-  transactions  Transaction[]
+  id              String         @id @default(cuid())
+  name            String
+  email           String         @unique
+  password        String
+  role            Role           @default(CASHIER)
+  branchId        String?
+  branch          Branch?        @relation(fields: [branchId], references: [id])
+  createdAt       DateTime       @default(now())
+  transactions    Transaction[]
+  purchaseOrders  PurchaseOrder[]
+  cashierShifts   CashierShift[]
+  auditLogs       AuditLog[]
 }
 
 model Category {
@@ -31,39 +73,141 @@ model Category {
 }
 
 model Product {
-  id            String   @id @default(cuid())
-  name          String
-  description   String   @default("")
-  price         Float
-  cost          Float    @default(0)
-  stock         Int      @default(0)
-  categoryId    String
-  category      Category @relation(fields: [categoryId], references: [id])
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id               String            @id @default(cuid())
+  name             String
+  description      String            @default("")
+  price            Float
+  cost             Float             @default(0)
+  stock            Int               @default(0)
+  categoryId       String
+  category         Category          @relation(fields: [categoryId], references: [id])
+  branchId         String?
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+  image            String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
   transactionItems TransactionItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 }
 
 model Transaction {
-  id                String   @id @default(cuid())
-  transactionNumber String   @unique
+  id                String            @id @default(cuid())
+  transactionNumber String            @unique
   totalAmount       Float
   paymentAmount     Float
   changeAmount      Float
   userId            String
-  user              User     @relation(fields: [userId], references: [id])
-  createdAt         DateTime @default(now())
+  user              User              @relation(fields: [userId], references: [id])
+  branchId          String?
+  branch            Branch?           @relation(fields: [branchId], references: [id])
+  customerId        String?
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  shiftId           String?
+  shift             CashierShift?     @relation(fields: [shiftId], references: [id])
+  createdAt         DateTime          @default(now())
   items             TransactionItem[]
 }
 
 model TransactionItem {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   transactionId String
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   productId     String
-  product       Product  @relation(fields: [productId], references: [id])
+  product       Product     @relation(fields: [productId], references: [id])
   productName   String
   quantity      Int
   price         Float
   subtotal      Float
+}
+
+// ============ ENTERPRISE MODELS ============
+
+model Supplier {
+  id              String          @id @default(cuid())
+  name            String
+  email           String          @default("")
+  phone           String          @default("")
+  address         String          @default("")
+  branchId        String?
+  branch          Branch?         @relation(fields: [branchId], references: [id])
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  purchaseOrders  PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id              String              @id @default(cuid())
+  poNumber        String              @unique
+  supplierId      String
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  branchId        String?
+  branch          Branch?             @relation(fields: [branchId], references: [id])
+  status          POStatus            @default(DRAFT)
+  totalAmount     Float               @default(0)
+  notes           String              @default("")
+  createdBy       String
+  creator         User                @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime            @default(now())
+  receivedAt      DateTime?
+  items           PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantity        Int
+  cost            Float
+  subtotal        Float
+}
+
+model Customer {
+  id            String          @id @default(cuid())
+  name          String
+  phone         String          @default("")
+  email         String          @default("")
+  branchId      String?
+  branch        Branch?         @relation(fields: [branchId], references: [id])
+  totalPoints   Int             @default(0)
+  totalSpent    Float           @default(0)
+  createdAt     DateTime        @default(now())
+  transactions  Transaction[]
+}
+
+model LoyaltyRule {
+  id                String  @id @default(cuid())
+  pointsPerRupiah   Float   @default(0.01)
+  minPurchase       Float   @default(0)
+  isActive          Boolean @default(true)
+}
+
+model CashierShift {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  branchId        String?
+  branch          Branch?       @relation(fields: [branchId], references: [id])
+  shiftType       ShiftType     @default(PAGI)
+  openedAt        DateTime      @default(now())
+  closedAt        DateTime?
+  openingBalance  Float         @default(0)
+  closingBalance  Float?
+  totalSales      Float         @default(0)
+  notes           String        @default("")
+  status          ShiftStatus   @default(OPEN)
+  transactions    Transaction[]
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entity      String
+  entityId    String?
+  details     String   @default("")
+  ipAddress   String   @default("")
+  createdAt   DateTime @default(now())
 }

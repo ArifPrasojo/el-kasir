@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2, X, Check } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 
 interface Category {
   id: string
@@ -21,8 +22,12 @@ export default function CategoriesPage() {
   const [form, setForm] = useState({ name: "", description: "" })
 
   const fetchCategories = async () => {
-    const res = await fetch("/api/categories")
-    setCategories(await res.json())
+    try {
+      const data = await apiFetch<Category[]>("/api/categories")
+      setCategories(data)
+    } catch (err) {
+      console.error("Failed to fetch categories:", err)
+    }
     setLoading(false)
   }
 

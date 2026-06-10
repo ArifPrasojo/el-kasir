@@ -15,6 +15,12 @@ import {
   LogOut,
   Menu,
   X,
+  Building2,
+  Truck,
+  ClipboardList,
+  UserCheck,
+  Clock,
+  ScrollText,
 } from "lucide-react"
 import Logo from "./Logo"
 
@@ -25,6 +31,12 @@ const navItems = [
   { href: "/dashboard/categories", label: "Kategori", icon: FolderOpen },
   { href: "/dashboard/transactions", label: "Transaksi", icon: Receipt },
   { href: "/dashboard/reports", label: "Laporan", icon: BarChart3 },
+  { href: "/dashboard/customers", label: "Customer", icon: UserCheck },
+  { href: "/dashboard/suppliers", label: "Supplier", icon: Truck },
+  { href: "/dashboard/purchase-orders", label: "Purchase Order", icon: ClipboardList },
+  { href: "/dashboard/shifts", label: "Shift Kasir", icon: Clock },
+  { href: "/dashboard/branches", label: "Cabang", icon: Building2, adminOnly: true },
+  { href: "/dashboard/audit", label: "Audit Log", icon: ScrollText, adminOnly: true },
   { href: "/dashboard/users", label: "Pengguna", icon: Users, adminOnly: true },
 ]
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Eye, Calendar } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 
 interface Transaction {
   id: string; transactionNumber: string; totalAmount: number; paymentAmount: number
@@ -28,16 +29,24 @@ export default function TransactionsPage() {
     const params = new URLSearchParams()
     if (dateFrom) params.append("dateFrom", dateFrom)
     if (dateTo) params.append("dateTo", dateTo)
-    const res = await fetch(`/api/transactions?${params}`)
-    setTransactions(await res.json())
+    try {
+      const data = await apiFetch<Transaction[]>(`/api/transactions?${params}`)
+      setTransactions(data)
+    } catch (err) {
+      console.error("Failed to fetch transactions:", err)
+    }
     setLoading(false)
   }
 
   useEffect(() => { fetchTransactions() }, [dateFrom, dateTo])
 
   const viewDetail = async (id: string) => {
-    const res = await fetch(`/api/transactions?id=${id}`)
-    setDetail(await res.json())
+    try {
+      const data = await apiFetch<TransactionDetail>(`/api/transactions?id=${id}`)
+      setDetail(data)
+    } catch (err) {
+      console.error("Failed to fetch detail:", err)
+    }
   }
 
   return (

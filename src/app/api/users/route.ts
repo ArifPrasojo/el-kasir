@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
-import { sanitizeString, isValidEmail } from "@/lib/validate"
+import { sanitizeString, isValidEmail, isValidPassword } from "@/lib/validate"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -38,9 +38,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
   }
 
-  const password = body.password ? sanitizeString(body.password) : "password123"
-  if (password.length < 6) {
-    return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
+  const password = body.password ? sanitizeString(body.password) : "Password1!"
+  const pwCheck = isValidPassword(password)
+  if (!pwCheck.valid) {
+    return NextResponse.json({ error: pwCheck.message }, { status: 400 })
   }
 
   const hashedPassword = await bcrypt.hash(password, 10)
@@ -80,8 +81,9 @@ export async function PUT(request: NextRequest) {
 
   if (body.password) {
     const password = sanitizeString(body.password)
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
+    const pwCheck = isValidPassword(password)
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.message }, { status: 400 })
     }
     updateData.password = await bcrypt.hash(password, 10)
   }

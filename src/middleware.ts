@@ -23,7 +23,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Role-based access control
-  if (pathname.startsWith("/dashboard/users") && token.role !== "ADMIN") {
+  const adminOnlyPaths = ["/dashboard/users", "/dashboard/branches", "/dashboard/audit"]
+  if (adminOnlyPaths.some((p) => pathname.startsWith(p)) && token.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 

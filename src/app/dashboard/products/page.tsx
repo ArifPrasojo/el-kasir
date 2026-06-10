@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2, Search } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 
 interface Product {
   id: string
@@ -37,12 +38,16 @@ export default function ProductsPage() {
   })
 
   const fetchData = async () => {
-    const [prodRes, catRes] = await Promise.all([
-      fetch(`/api/products?search=${search}&categoryId=${filterCategory}`),
-      fetch("/api/categories"),
-    ])
-    setProducts(await prodRes.json())
-    setCategories(await catRes.json())
+    try {
+      const [products, categories] = await Promise.all([
+        apiFetch<Product[]>(`/api/products?search=${search}&categoryId=${filterCategory}`),
+        apiFetch<Category[]>("/api/categories"),
+      ])
+      setProducts(products)
+      setCategories(categories)
+    } catch (err) {
+      console.error("Failed to fetch data:", err)
+    }
     setLoading(false)
   }
 

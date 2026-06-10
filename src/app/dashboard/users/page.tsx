@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Plus, Pencil, Trash2, Shield, User } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 
 interface UserData {
   id: string; name: string; email: string; role: string; createdAt: string
@@ -15,8 +16,12 @@ export default function UsersPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "CASHIER" })
 
   const fetchUsers = async () => {
-    const res = await fetch("/api/users")
-    setUsers(await res.json())
+    try {
+      const data = await apiFetch<UserData[]>("/api/users")
+      setUsers(data)
+    } catch (err) {
+      console.error("Failed to fetch users:", err)
+    }
     setLoading(false)
   }
 

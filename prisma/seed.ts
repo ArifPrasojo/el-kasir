@@ -1,13 +1,24 @@
 import { PrismaClient, Role } from "../src/generated/prisma/client"
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3"
+import { PrismaPg } from "@prisma/adapter-pg"
 import bcrypt from "bcryptjs"
-import path from "path"
+import "dotenv/config"
 
-const dbPath = path.join(process.cwd(), "dev.db")
-const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` })
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
+  // Create default branch
+  const branch = await prisma.branch.upsert({
+    where: { id: "main-branch" },
+    update: {},
+    create: {
+      id: "main-branch",
+      name: "Cabang Utama",
+      address: "Jl. Merdeka No. 1, Jakarta",
+      phone: "021-1234567",
+    },
+  })
+
   // Create admin user
   const hashedPassword = await bcrypt.hash("admin123", 10)
   await prisma.user.upsert({
@@ -18,6 +29,7 @@ async function main() {
       email: "admin@elkasir.com",
       password: hashedPassword,
       role: Role.ADMIN,
+      branchId: branch.id,
     },
   })
 
@@ -31,6 +43,7 @@ async function main() {
       email: "kasir@elkasir.com",
       password: cashierPassword,
       role: Role.CASHIER,
+      branchId: branch.id,
     },
   })
 
@@ -46,6 +59,18 @@ async function main() {
       },
     })
   }
+
+  // Create default loyalty rule
+  await prisma.loyaltyRule.upsert({
+    where: { id: "default-rule" },
+    update: {},
+    create: {
+      id: "default-rule",
+      pointsPerRupiah: 0.01,
+      minPurchase: 50000,
+      isActive: true,
+    },
+  })
 
   console.log("Seed data created successfully!")
 }

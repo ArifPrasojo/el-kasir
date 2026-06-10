@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, ChevronDown } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 
 interface Product {
   id: string; name: string; price: number; stock: number; category: { id: string; name: string }
@@ -40,14 +41,18 @@ export default function POSPage() {
   const receiptRef = useRef<HTMLDivElement>(null)
 
   const fetchProducts = async () => {
-    const res = await fetch(`/api/products?search=${search}&categoryId=${filterCategory}&activeOnly=true`)
-    setProducts(await res.json())
+    try {
+      const data = await apiFetch<Product[]>(`/api/products?search=${search}&categoryId=${filterCategory}&activeOnly=true`)
+      setProducts(data)
+    } catch (err) {
+      console.error("Failed to fetch products:", err)
+    }
   }
 
   useEffect(() => { fetchProducts() }, [search, filterCategory])
 
   useEffect(() => {
-    fetch("/api/categories").then((res) => res.json()).then(setCategories)
+    apiFetch<Category[]>("/api/categories").then(setCategories).catch(console.error)
   }, [])
 
   const formatCurrency = (amount: number) =>

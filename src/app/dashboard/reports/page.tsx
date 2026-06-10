@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Calendar, DollarSign, TrendingUp, ShoppingBag } from "lucide-react"
+import { apiFetch } from "@/lib/api-client"
 
 interface ReportData {
   transactions: {
@@ -25,8 +26,12 @@ export default function ReportsPage() {
 
   const fetchReport = async () => {
     setLoading(true)
-    const res = await fetch(`/api/reports?type=report&dateFrom=${dateFrom}&dateTo=${dateTo}`)
-    setReport(await res.json())
+    try {
+      const data = await apiFetch<ReportData>(`/api/reports?type=report&dateFrom=${dateFrom}&dateTo=${dateTo}`)
+      setReport(data)
+    } catch (err) {
+      console.error("Failed to fetch report:", err)
+    }
     setLoading(false)
   }
 
