@@ -62,67 +62,92 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const sessionUser = session.user as SessionUser
-  const body = await request.json()
+  try {
+    const sessionUser = session.user as SessionUser
+    const body = await request.json()
 
-  // Generate transaction number
-  const now = new Date()
-  const txCount = await prisma.transaction.count({
-    where: {
-      createdAt: {
-        gte: new Date(now.toISOString().split("T")[0]),
-      },
-    },
-  })
-  const transactionNumber = `TRX${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`
-
-  // Create transaction with items and update stock
-  const transaction = await prisma.$transaction(async (tx) => {
-    const items = []
-    for (const item of body.items) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } })
-      if (!product) throw new Error(`Product not found: ${item.productId}`)
-      if (product.stock < item.quantity) throw new Error(`Insufficient stock: ${product.name}`)
-
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      })
-
-      items.push({
-        productId: item.productId,
-        productName: product.name,
-        quantity: item.quantity,
-        price: product.price,
-        subtotal: product.price * item.quantity,
-      })
+    // Validate request body
+    if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+      return NextResponse.json({ error: "Keranjang tidak boleh kosong" }, { status: 400 })
+    }
+    if (!body.totalAmount || body.totalAmount <= 0) {
+      return NextResponse.json({ error: "Total amount tidak valid" }, { status: 400 })
+    }
+    if (body.paymentAmount === undefined || body.paymentAmount < body.totalAmount) {
+      return NextResponse.json({ error: "Jumlah pembayaran tidak mencukupi" }, { status: 400 })
     }
 
-    // Update customer spending if customerId provided
-    if (body.customerId) {
-      await tx.customer.update({
-        where: { id: body.customerId },
-        data: {
-          totalSpent: { increment: body.totalAmount },
-          totalPoints: { increment: Math.floor(body.totalAmount / 1000) },
+    // Generate transaction number
+    const now = new Date()
+    const txCount = await prisma.transaction.count({
+      where: {
+        createdAt: {
+          gte: new Date(now.toISOString().split("T")[0]),
         },
-      })
-    }
-
-    return tx.transaction.create({
-      data: {
-        transactionNumber,
-        totalAmount: body.totalAmount,
-        paymentAmount: body.paymentAmount,
-        changeAmount: body.changeAmount,
-        userId: sessionUser.id,
-        branchId: sessionUser.branchId ?? null,
-        customerId: body.customerId ?? null,
-        items: { create: items },
       },
-      include: { items: true, user: true, customer: true },
     })
-  })
+    const transactionNumber = `TRX${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`
 
-  return NextResponse.json(transaction, { status: 201 })
+    // Create transaction with items and update stock
+    const transaction = await prisma.$transaction(async (tx) => {
+      const items = []
+      for (const item of body.items) {
+        if (!item.productId || !item.quantity || item.quantity <= 0) {
+          throw new Error("Item tidak valid")
+        }
+        const product = await tx.product.findUnique({ where: { id: item.productId } })
+        if (!product) throw new Error(`Produk tidak ditemukan: ${item.productId}`)
+        if (product.stock < item.quantity) throw new Error(`Stok tidak cukup: ${product.name} (tersedia: ${product.stock}, diminta: ${item.quantity})`)
+
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } },
+        })
+
+        items.push({
+          productId: item.productId,
+          productName: product.name,
+          quantity: item.quantity,
+          price: product.price,
+          subtotal: product.price * item.quantity,
+        })
+      }
+
+      // Update customer spending if customerId provided
+      if (body.customerId) {
+        try {
+          await tx.customer.update({
+            where: { id: body.customerId },
+            data: {
+              totalSpent: { increment: body.totalAmount },
+              totalPoints: { increment: Math.floor(body.totalAmount / 1000) },
+            },
+          })
+        } catch {
+          // Customer might not exist, skip
+          console.warn("Customer update skipped: customer not found", body.customerId)
+        }
+      }
+
+      return tx.transaction.create({
+        data: {
+          transactionNumber,
+          totalAmount: body.totalAmount,
+          paymentAmount: body.paymentAmount,
+          changeAmount: body.changeAmount ?? 0,
+          userId: sessionUser.id,
+          branchId: sessionUser.branchId ?? null,
+          customerId: body.customerId ?? null,
+          items: { create: items },
+        },
+        include: { items: true, user: true, customer: true },
+      })
+    })
+
+    return NextResponse.json(transaction, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/transactions error:", error)
+    const message = error instanceof Error ? error.message : "Gagal memproses transaksi"
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

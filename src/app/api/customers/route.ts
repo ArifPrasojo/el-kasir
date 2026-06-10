@@ -50,16 +50,21 @@ export async function POST(request: NextRequest) {
   const name = sanitizeString(body.name)
   if (!name) return NextResponse.json({ error: "Nama customer wajib diisi" }, { status: 400 })
 
-  const customer = await prisma.customer.create({
-    data: {
-      name,
-      phone: sanitizeString(body.phone),
-      email: sanitizeString(body.email),
-      // Kasir otomatis assign ke cabangnya
-      branchId: body.branchId || sessionUser.branchId || null,
-    },
-  })
-  return NextResponse.json(customer, { status: 201 })
+  try {
+    const customer = await prisma.customer.create({
+      data: {
+        name,
+        phone: sanitizeString(body.phone),
+        email: sanitizeString(body.email),
+        // Kasir otomatis assign ke cabangnya
+        branchId: body.branchId || sessionUser.branchId || null,
+      },
+    })
+    return NextResponse.json(customer, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/customers error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan customer" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -67,15 +72,20 @@ export async function PUT(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await request.json()
-  const customer = await prisma.customer.update({
-    where: { id: sanitizeString(body.id) },
-    data: {
-      name: sanitizeString(body.name),
-      phone: sanitizeString(body.phone),
-      email: sanitizeString(body.email),
-    },
-  })
-  return NextResponse.json(customer)
+  try {
+    const customer = await prisma.customer.update({
+      where: { id: sanitizeString(body.id) },
+      data: {
+        name: sanitizeString(body.name),
+        phone: sanitizeString(body.phone),
+        email: sanitizeString(body.email),
+      },
+    })
+    return NextResponse.json(customer)
+  } catch (error) {
+    console.error("PUT /api/customers error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate customer" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {

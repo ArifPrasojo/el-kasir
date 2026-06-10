@@ -32,17 +32,22 @@ export async function POST(request: NextRequest) {
   const name = sanitizeString(body.name)
   if (!name) return NextResponse.json({ error: "Nama bahan baku wajib diisi" }, { status: 400 })
 
-  const material = await prisma.rawMaterial.create({
-    data: {
-      name,
-      unit: sanitizeString(body.unit) || "pcs",
-      stock: sanitizeNumber(body.stock, 0),
-      costPerUnit: sanitizeNumber(body.costPerUnit, 0),
-      minStock: sanitizeNumber(body.minStock, 0),
-      branchId: body.branchId || null,
-    },
-  })
-  return NextResponse.json(material, { status: 201 })
+  try {
+    const material = await prisma.rawMaterial.create({
+      data: {
+        name,
+        unit: sanitizeString(body.unit) || "pcs",
+        stock: sanitizeNumber(body.stock, 0),
+        costPerUnit: sanitizeNumber(body.costPerUnit, 0),
+        minStock: sanitizeNumber(body.minStock, 0),
+        branchId: body.branchId || null,
+      },
+    })
+    return NextResponse.json(material, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/raw-materials error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan bahan baku" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -53,19 +58,24 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json()
-  const material = await prisma.rawMaterial.update({
-    where: { id: sanitizeString(body.id) },
-    data: {
-      name: sanitizeString(body.name),
-      unit: sanitizeString(body.unit) || "pcs",
-      stock: sanitizeNumber(body.stock, 0),
-      costPerUnit: sanitizeNumber(body.costPerUnit, 0),
-      minStock: sanitizeNumber(body.minStock, 0),
-      branchId: body.branchId || null,
-      isActive: body.isActive !== false,
-    },
-  })
-  return NextResponse.json(material)
+  try {
+    const material = await prisma.rawMaterial.update({
+      where: { id: sanitizeString(body.id) },
+      data: {
+        name: sanitizeString(body.name),
+        unit: sanitizeString(body.unit) || "pcs",
+        stock: sanitizeNumber(body.stock, 0),
+        costPerUnit: sanitizeNumber(body.costPerUnit, 0),
+        minStock: sanitizeNumber(body.minStock, 0),
+        branchId: body.branchId || null,
+        isActive: body.isActive !== false,
+      },
+    })
+    return NextResponse.json(material)
+  } catch (error) {
+    console.error("PUT /api/raw-materials error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate bahan baku" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {

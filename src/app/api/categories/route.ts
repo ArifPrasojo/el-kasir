@@ -28,14 +28,19 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const category = await prisma.category.create({
-    data: {
-      name: body.name,
-      description: body.description || "",
-    },
-  })
+  try {
+    const category = await prisma.category.create({
+      data: {
+        name: body.name,
+        description: body.description || "",
+      },
+    })
 
-  return NextResponse.json(category, { status: 201 })
+    return NextResponse.json(category, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/categories error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan kategori" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -46,12 +51,17 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json()
-  const category = await prisma.category.update({
-    where: { id: body.id },
-    data: { name: body.name, description: body.description || "" },
-  })
+  try {
+    const category = await prisma.category.update({
+      where: { id: body.id },
+      data: { name: body.name, description: body.description || "" },
+    })
 
-  return NextResponse.json(category)
+    return NextResponse.json(category)
+  } catch (error) {
+    console.error("PUT /api/categories error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate kategori" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {

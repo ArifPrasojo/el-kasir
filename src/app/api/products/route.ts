@@ -53,19 +53,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Product name is required" }, { status: 400 })
   }
 
-  const product = await prisma.product.create({
-    data: {
-      name,
-      description: sanitizeString(body.description),
-      price: sanitizeNumber(body.price, 0),
-      cost: sanitizeNumber(body.cost, 0),
-      stock: sanitizeNumber(body.stock, 0, 999999),
-      categoryId: sanitizeString(body.categoryId),
-      isActive: body.isActive !== false,
-    },
-  })
+  try {
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description: sanitizeString(body.description),
+        price: sanitizeNumber(body.price, 0),
+        cost: sanitizeNumber(body.cost, 0),
+        stock: sanitizeNumber(body.stock, 0, 999999),
+        categoryId: sanitizeString(body.categoryId),
+        isActive: body.isActive !== false,
+      },
+    })
 
-  return NextResponse.json(product, { status: 201 })
+    return NextResponse.json(product, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/products error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan produk" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -82,20 +87,25 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Product name is required" }, { status: 400 })
   }
 
-  const product = await prisma.product.update({
-    where: { id: sanitizeString(body.id) },
-    data: {
-      name,
-      description: sanitizeString(body.description),
-      price: sanitizeNumber(body.price, 0),
-      cost: sanitizeNumber(body.cost, 0),
-      stock: sanitizeNumber(body.stock, 0, 999999),
-      categoryId: sanitizeString(body.categoryId),
-      isActive: body.isActive !== false,
-    },
-  })
+  try {
+    const product = await prisma.product.update({
+      where: { id: sanitizeString(body.id) },
+      data: {
+        name,
+        description: sanitizeString(body.description),
+        price: sanitizeNumber(body.price, 0),
+        cost: sanitizeNumber(body.cost, 0),
+        stock: sanitizeNumber(body.stock, 0, 999999),
+        categoryId: sanitizeString(body.categoryId),
+        isActive: body.isActive !== false,
+      },
+    })
 
-  return NextResponse.json(product)
+    return NextResponse.json(product)
+  } catch (error) {
+    console.error("PUT /api/products error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate produk" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {

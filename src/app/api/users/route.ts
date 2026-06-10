@@ -78,15 +78,20 @@ export async function POST(request: NextRequest) {
   const hashedPassword = await bcrypt.hash(password, 10)
   const role = body.role === "ADMIN" ? "ADMIN" : "CASHIER"
 
-  const user = await prisma.user.create({
-    data: { name, email, password: hashedPassword, role, branchId },
-    select: {
-      id: true, name: true, email: true, role: true, createdAt: true,
-      branchId: true, branch: { select: { id: true, name: true } },
-    },
-  })
+  try {
+    const user = await prisma.user.create({
+      data: { name, email, password: hashedPassword, role, branchId },
+      select: {
+        id: true, name: true, email: true, role: true, createdAt: true,
+        branchId: true, branch: { select: { id: true, name: true } },
+      },
+    })
 
-  return NextResponse.json(user, { status: 201 })
+    return NextResponse.json(user, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/users error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan pengguna" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -143,16 +148,21 @@ export async function PUT(request: NextRequest) {
     updateData.password = await bcrypt.hash(password, 10)
   }
 
-  const user = await prisma.user.update({
-    where: { id: sanitizeString(body.id) },
-    data: updateData,
-    select: {
-      id: true, name: true, email: true, role: true, createdAt: true,
-      branchId: true, branch: { select: { id: true, name: true } },
-    },
-  })
+  try {
+    const user = await prisma.user.update({
+      where: { id: sanitizeString(body.id) },
+      data: updateData,
+      select: {
+        id: true, name: true, email: true, role: true, createdAt: true,
+        branchId: true, branch: { select: { id: true, name: true } },
+      },
+    })
 
-  return NextResponse.json(user)
+    return NextResponse.json(user)
+  } catch (error) {
+    console.error("PUT /api/users error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate pengguna" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {

@@ -129,29 +129,35 @@ export default function POSPage() {
           customerId: selectedCustomer?.id ?? null,
         }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setReceiptData({
-          transactionNumber: data.transactionNumber,
-          totalAmount: data.totalAmount,
-          paymentAmount: data.paymentAmount,
-          changeAmount: data.changeAmount,
-          items: cart,
-          createdAt: data.createdAt,
-          userName: data.user?.name || sessionUser?.name || "",
-          branchName: sessionUser?.branchName,
-          customerName: selectedCustomer?.name,
-        })
-        setShowReceipt(true)
-        setCart([])
-        setPaymentAmount("")
-        setPaymentDisplay("")
-        setSelectedCustomer(null)
-        setCustomerSearch("")
-        fetchProducts()
-        // Refresh customer list to get updated points
-        apiFetch<Customer[]>("/api/customers").then(setCustomers).catch(console.error)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Transaksi gagal diproses" }))
+        alert(data.error || "Transaksi gagal diproses. Silakan coba lagi.")
+        return
       }
+      const data = await res.json()
+      setReceiptData({
+        transactionNumber: data.transactionNumber,
+        totalAmount: data.totalAmount,
+        paymentAmount: data.paymentAmount,
+        changeAmount: data.changeAmount,
+        items: cart,
+        createdAt: data.createdAt,
+        userName: data.user?.name || sessionUser?.name || "",
+        branchName: sessionUser?.branchName,
+        customerName: selectedCustomer?.name,
+      })
+      setShowReceipt(true)
+      setCart([])
+      setPaymentAmount("")
+      setPaymentDisplay("")
+      setSelectedCustomer(null)
+      setCustomerSearch("")
+      fetchProducts()
+      // Refresh customer list to get updated points
+      apiFetch<Customer[]>("/api/customers").then(setCustomers).catch(console.error)
+    } catch (err) {
+      console.error("Checkout error:", err)
+      alert("Terjadi kesalahan saat memproses transaksi. Silakan coba lagi.")
     } finally {
       setCheckoutLoading(false)
     }

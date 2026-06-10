@@ -49,29 +49,34 @@ export async function POST(request: NextRequest) {
     })
   ).filter((m: { rawMaterialId: string }) => m.rawMaterialId)
 
-  const supplier = await prisma.supplier.create({
-    data: {
-      name,
-      email: sanitizeString(body.email),
-      phone: sanitizeString(body.phone),
-      address: sanitizeString(body.address),
-      branchId: body.branchId || null,
-      supplierMaterials: materialLinks.length > 0
-        ? { create: materialLinks }
-        : { create: [] },
-    },
-    include: {
-      supplierMaterials: { include: { rawMaterial: { select: { id: true, name: true, unit: true } } } },
-    },
-  })
+  try {
+    const supplier = await prisma.supplier.create({
+      data: {
+        name,
+        email: sanitizeString(body.email),
+        phone: sanitizeString(body.phone),
+        address: sanitizeString(body.address),
+        branchId: body.branchId || null,
+        supplierMaterials: materialLinks.length > 0
+          ? { create: materialLinks }
+          : { create: [] },
+      },
+      include: {
+        supplierMaterials: { include: { rawMaterial: { select: { id: true, name: true, unit: true } } } },
+      },
+    })
 
-  await auditLog({
-    userId: (session.user as { id: string }).id,
-    action: "CREATE", entity: "Supplier", entityId: supplier.id,
-    details: `Created supplier: ${name} with ${materialLinks.length} materials`, request,
-  })
+    await auditLog({
+      userId: (session.user as { id: string }).id,
+      action: "CREATE", entity: "Supplier", entityId: supplier.id,
+      details: `Created supplier: ${name} with ${materialLinks.length} materials`, request,
+    })
 
-  return NextResponse.json(supplier, { status: 201 })
+    return NextResponse.json(supplier, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/suppliers error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan supplier" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -92,37 +97,42 @@ export async function PUT(request: NextRequest) {
     })
   ).filter((m: { rawMaterialId: string }) => m.rawMaterialId)
 
-  // Replace all supplierMaterials: delete old, create new
-  await prisma.$transaction(async (tx) => {
-    await tx.supplierMaterial.deleteMany({ where: { supplierId: id } })
-    await tx.supplier.update({
+  try {
+    // Replace all supplierMaterials: delete old, create new
+    await prisma.$transaction(async (tx) => {
+      await tx.supplierMaterial.deleteMany({ where: { supplierId: id } })
+      await tx.supplier.update({
+        where: { id },
+        data: {
+          name: sanitizeString(body.name),
+          email: sanitizeString(body.email),
+          phone: sanitizeString(body.phone),
+          address: sanitizeString(body.address),
+          branchId: body.branchId || null,
+          isActive: body.isActive !== false,
+          ...(materialLinks.length > 0 ? { supplierMaterials: { create: materialLinks } } : {}),
+        },
+      })
+    })
+
+    const supplier = await prisma.supplier.findUnique({
       where: { id },
-      data: {
-        name: sanitizeString(body.name),
-        email: sanitizeString(body.email),
-        phone: sanitizeString(body.phone),
-        address: sanitizeString(body.address),
-        branchId: body.branchId || null,
-        isActive: body.isActive !== false,
-        ...(materialLinks.length > 0 ? { supplierMaterials: { create: materialLinks } } : {}),
+      include: {
+        supplierMaterials: { include: { rawMaterial: { select: { id: true, name: true, unit: true } } } },
       },
     })
-  })
 
-  const supplier = await prisma.supplier.findUnique({
-    where: { id },
-    include: {
-      supplierMaterials: { include: { rawMaterial: { select: { id: true, name: true, unit: true } } } },
-    },
-  })
+    await auditLog({
+      userId: (session.user as { id: string }).id,
+      action: "UPDATE", entity: "Supplier", entityId: id,
+      details: `Updated supplier with ${materialLinks.length} materials`, request,
+    })
 
-  await auditLog({
-    userId: (session.user as { id: string }).id,
-    action: "UPDATE", entity: "Supplier", entityId: id,
-    details: `Updated supplier with ${materialLinks.length} materials`, request,
-  })
-
-  return NextResponse.json(supplier)
+    return NextResponse.json(supplier)
+  } catch (error) {
+    console.error("PUT /api/suppliers error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate supplier" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {

@@ -33,22 +33,27 @@ export async function POST(request: NextRequest) {
   const name = sanitizeString(body.name)
   if (!name) return NextResponse.json({ error: "Nama cabang wajib diisi" }, { status: 400 })
 
-  const branch = await prisma.branch.create({
-    data: {
-      name,
-      address: sanitizeString(body.address),
-      phone: sanitizeString(body.phone),
-      isActive: body.isActive !== false,
-    },
-  })
+  try {
+    const branch = await prisma.branch.create({
+      data: {
+        name,
+        address: sanitizeString(body.address),
+        phone: sanitizeString(body.phone),
+        isActive: body.isActive !== false,
+      },
+    })
 
-  await auditLog({
-    userId: (session.user as { id: string }).id,
-    action: "CREATE", entity: "Branch", entityId: branch.id,
-    details: `Created branch: ${name}`, request,
-  })
+    await auditLog({
+      userId: (session.user as { id: string }).id,
+      action: "CREATE", entity: "Branch", entityId: branch.id,
+      details: `Created branch: ${name}`, request,
+    })
 
-  return NextResponse.json(branch, { status: 201 })
+    return NextResponse.json(branch, { status: 201 })
+  } catch (error) {
+    console.error("POST /api/branches error:", error)
+    return NextResponse.json({ error: "Gagal menambahkan cabang" }, { status: 500 })
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -59,23 +64,28 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json()
-  const branch = await prisma.branch.update({
-    where: { id: sanitizeString(body.id) },
-    data: {
-      name: sanitizeString(body.name),
-      address: sanitizeString(body.address),
-      phone: sanitizeString(body.phone),
-      isActive: body.isActive !== false,
-    },
-  })
+  try {
+    const branch = await prisma.branch.update({
+      where: { id: sanitizeString(body.id) },
+      data: {
+        name: sanitizeString(body.name),
+        address: sanitizeString(body.address),
+        phone: sanitizeString(body.phone),
+        isActive: body.isActive !== false,
+      },
+    })
 
-  await auditLog({
-    userId: (session.user as { id: string }).id,
-    action: "UPDATE", entity: "Branch", entityId: branch.id,
-    details: `Updated branch: ${branch.name}`, request,
-  })
+    await auditLog({
+      userId: (session.user as { id: string }).id,
+      action: "UPDATE", entity: "Branch", entityId: branch.id,
+      details: `Updated branch: ${branch.name}`, request,
+    })
 
-  return NextResponse.json(branch)
+    return NextResponse.json(branch)
+  } catch (error) {
+    console.error("PUT /api/branches error:", error)
+    return NextResponse.json({ error: "Gagal mengupdate cabang" }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: NextRequest) {
