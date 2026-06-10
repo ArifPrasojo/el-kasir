@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { sanitizeString, sanitizeNumber } from "@/lib/validate"
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -40,14 +41,21 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+
+  // Input validation
+  const name = sanitizeString(body.name)
+  if (!name || name.length < 1) {
+    return NextResponse.json({ error: "Product name is required" }, { status: 400 })
+  }
+
   const product = await prisma.product.create({
     data: {
-      name: body.name,
-      description: body.description || "",
-      price: parseFloat(body.price),
-      cost: parseFloat(body.cost) || 0,
-      stock: parseInt(body.stock) || 0,
-      categoryId: body.categoryId,
+      name,
+      description: sanitizeString(body.description),
+      price: sanitizeNumber(body.price, 0),
+      cost: sanitizeNumber(body.cost, 0),
+      stock: sanitizeNumber(body.stock, 0, 999999),
+      categoryId: sanitizeString(body.categoryId),
       isActive: body.isActive !== false,
     },
   })
@@ -63,15 +71,21 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json()
+
+  const name = sanitizeString(body.name)
+  if (!name || name.length < 1) {
+    return NextResponse.json({ error: "Product name is required" }, { status: 400 })
+  }
+
   const product = await prisma.product.update({
-    where: { id: body.id },
+    where: { id: sanitizeString(body.id) },
     data: {
-      name: body.name,
-      description: body.description || "",
-      price: parseFloat(body.price),
-      cost: parseFloat(body.cost) || 0,
-      stock: parseInt(body.stock) || 0,
-      categoryId: body.categoryId,
+      name,
+      description: sanitizeString(body.description),
+      price: sanitizeNumber(body.price, 0),
+      cost: sanitizeNumber(body.cost, 0),
+      stock: sanitizeNumber(body.stock, 0, 999999),
+      categoryId: sanitizeString(body.categoryId),
       isActive: body.isActive !== false,
     },
   })

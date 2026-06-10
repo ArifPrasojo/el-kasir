@@ -255,49 +255,75 @@ export default function POSPage() {
 
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 print:bg-white print:p-0">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm print:shadow-none print:max-w-full">
-            <div ref={receiptRef} className="print:px-4">
-              <div className="text-center mb-4">
-                <h2 className="text-lg font-bold">El-Kasir</h2>
-                <p className="text-xs text-gray-500">Struk Pembayaran</p>
-                <p className="text-xs text-gray-500">{new Date(receiptData.createdAt).toLocaleString("id-ID")}</p>
-                <p className="text-xs text-gray-500">No: {receiptData.transactionNumber}</p>
-                <p className="text-xs text-gray-500">Kasir: {receiptData.userName}</p>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl">
+            {/* Receipt content - this is what prints */}
+            <div ref={receiptRef} className="receipt-print p-5">
+              {/* Header */}
+              <h2 className="text-lg font-bold text-center mb-0">El-Kasir</h2>
+              <p className="receipt-center text-xs text-gray-500 mb-0.5">Struk Pembayaran</p>
+              <p className="receipt-center text-xs text-gray-500">{new Date(receiptData.createdAt).toLocaleString("id-ID")}</p>
+
+              <div className="receipt-divider border-t border-dashed border-gray-300 my-3" />
+
+              {/* Transaction info */}
+              <div className="space-y-0.5 text-xs text-gray-600 mb-2">
+                <div className="flex justify-between">
+                  <span>No</span>
+                  <span className="font-medium">{receiptData.transactionNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kasir</span>
+                  <span>{receiptData.userName}</span>
+                </div>
               </div>
 
-              <div className="border-t border-dashed py-3 space-y-2">
+              <div className="receipt-divider border-t border-dashed border-gray-300 my-3" />
+
+              {/* Items */}
+              <div className="space-y-2">
                 {receiptData.items.map((item, i) => (
-                  <div key={i} className="text-sm">
-                    <p className="font-medium">{item.product.name}</p>
-                    <div className="flex justify-between text-gray-600">
+                  <div key={i} className="receipt-item">
+                    <p className="receipt-item-name text-sm font-medium text-gray-800">{item.product.name}</p>
+                    <div className="receipt-item-detail text-xs text-gray-500">
                       <span>{item.quantity} x {formatCurrency(item.product.price)}</span>
-                      <span>{formatCurrency(item.product.price * item.quantity)}</span>
+                      <span className="font-medium text-gray-700">{formatCurrency(item.product.price * item.quantity)}</span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t border-dashed pt-3 space-y-1">
-                <div className="flex justify-between font-bold">
-                  <span>Total</span><span>{formatCurrency(receiptData.totalAmount)}</span>
+              <div className="receipt-divider border-t border-dashed border-gray-300 my-3" />
+
+              {/* Totals */}
+              <div className="space-y-1">
+                <div className="receipt-total-row grand-total flex justify-between text-base font-bold border-t-0 pt-0 mt-0">
+                  <span>TOTAL</span>
+                  <span>{formatCurrency(receiptData.totalAmount)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Bayar</span><span>{formatCurrency(receiptData.paymentAmount)}</span>
+                <div className="receipt-total-row flex justify-between text-sm text-gray-600">
+                  <span>Bayar</span>
+                  <span>{formatCurrency(receiptData.paymentAmount)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Kembali</span><span>{formatCurrency(receiptData.changeAmount)}</span>
+                <div className="receipt-total-row flex justify-between text-sm text-gray-600">
+                  <span>Kembali</span>
+                  <span>{formatCurrency(receiptData.changeAmount)}</span>
                 </div>
               </div>
 
-              <p className="text-center text-xs text-gray-400 mt-4">Terima kasih atas kunjungan Anda!</p>
+              <div className="receipt-divider border-t border-dashed border-gray-300 my-3" />
+
+              {/* Footer */}
+              <p className="receipt-footer text-center text-xs text-gray-400 mt-3">Terima kasih atas kunjungan Anda!</p>
+              <p className="receipt-footer text-center text-xs text-gray-400">Barang yang sudah dibeli tidak dapat dikembalikan</p>
             </div>
 
-            <div className="flex gap-3 mt-4 print:hidden">
-              <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                <Printer className="w-4 h-4" /> Cetak
+            {/* Buttons - hidden when printing */}
+            <div className="flex gap-3 p-4 border-t print:hidden">
+              <button onClick={printReceipt} className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium">
+                <Printer className="w-4 h-4" /> Cetak Struk
               </button>
-              <button onClick={() => setShowReceipt(false)} className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300">
+              <button onClick={() => setShowReceipt(false)} className="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 font-medium">
                 Tutup
               </button>
             </div>
