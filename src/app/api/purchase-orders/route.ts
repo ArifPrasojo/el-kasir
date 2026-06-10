@@ -16,7 +16,12 @@ export async function GET(request: NextRequest) {
   if (id) {
     const po = await prisma.purchaseOrder.findUnique({
       where: { id },
-      include: { items: { include: { product: true } }, supplier: true, creator: { select: { name: true } }, branch: { select: { name: true } } },
+      include: {
+        items: { include: { rawMaterial: true, product: true } },
+        supplier: true,
+        creator: { select: { name: true } },
+        branch: { select: { name: true } },
+      },
     })
     return NextResponse.json(po)
   }
@@ -26,7 +31,12 @@ export async function GET(request: NextRequest) {
 
   const pos = await prisma.purchaseOrder.findMany({
     where,
-    include: { supplier: true, creator: { select: { name: true } }, branch: { select: { name: true } }, _count: { select: { items: true } } },
+    include: {
+      supplier: true,
+      creator: { select: { name: true } },
+      branch: { select: { name: true } },
+      _count: { select: { items: true } },
+    },
     orderBy: { createdAt: "desc" },
   })
   return NextResponse.json(pos)
@@ -46,14 +56,26 @@ export async function POST(request: NextRequest) {
   })
   const poNumber = `PO${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}-${String(count + 1).padStart(4, "0")}`
 
-  const items = (body.items || []).map((item: { productId: string; quantity: number; cost: number }) => ({
-    productId: sanitizeString(item.productId),
+  // Items are now raw materials
+  const items = (body.items || []).map((item: { rawMaterialId: string; quantity: number; cost: number }) => ({
+    rawMaterialId: sanitizeString(item.rawMaterialId),
+    itemName: "", // Will be populated from raw material name
     quantity: sanitizeNumber(item.quantity, 1),
     cost: sanitizeNumber(item.cost, 0),
     subtotal: sanitizeNumber(item.quantity, 1) * sanitizeNumber(item.cost, 0),
   }))
 
   const totalAmount = items.reduce((sum: number, item: { subtotal: number }) => sum + item.subtotal, 0)
+
+  // Get raw material names for itemName field
+  const materialIds = items.map((i: { rawMaterialId: string }) => i.rawMaterialId).filter(Boolean)
+  const materials = materialIds.length > 0
+    ? await prisma.rawMaterial.findMany({ where: { id: { in: materialIds } } })
+    : []
+  const materialMap = new Map(materials.map((m) => [m.id, m.name]))
+  items.forEach((item: { rawMaterialId: string; itemName: string }) => {
+    item.itemName = materialMap.get(item.rawMaterialId) || ""
+  })
 
   const po = await prisma.purchaseOrder.create({
     data: {
@@ -66,12 +88,12 @@ export async function POST(request: NextRequest) {
       createdBy: userId,
       items: { create: items },
     },
-    include: { items: true, supplier: true },
+    include: { items: { include: { rawMaterial: true } }, supplier: true },
   })
 
   await auditLog({
     userId, action: "CREATE", entity: "PurchaseOrder", entityId: po.id,
-    details: `Created PO: ${poNumber}, total: ${totalAmount}`, request,
+    details: `Created PO: ${poNumber} for raw materials, total: ${totalAmount}`, request,
   })
 
   return NextResponse.json(po, { status: 201 })
@@ -85,7 +107,7 @@ export async function PUT(request: NextRequest) {
   const userId = (session.user as { id: string }).id
   const newStatus = body.status
 
-  // If status changes to RECEIVED, update stock
+  // If status changes to RECEIVED, update raw material stock
   if (newStatus === "RECEIVED") {
     const po = await prisma.purchaseOrder.findUnique({
       where: { id: body.id },
@@ -95,12 +117,17 @@ export async function PUT(request: NextRequest) {
     if (po.status === "RECEIVED") return NextResponse.json({ error: "PO already received" }, { status: 400 })
 
     await prisma.$transaction(async (tx) => {
-      // Update stock for each item
+      // Update raw material stock for each item
       for (const item of po.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity }, cost: item.cost },
-        })
+        if (item.rawMaterialId) {
+          await tx.rawMaterial.update({
+            where: { id: item.rawMaterialId },
+            data: {
+              stock: { increment: item.quantity },
+              costPerUnit: item.cost,
+            },
+          })
+        }
       }
       // Update PO status
       await tx.purchaseOrder.update({
@@ -111,7 +138,7 @@ export async function PUT(request: NextRequest) {
 
     await auditLog({
       userId, action: "RECEIVE", entity: "PurchaseOrder", entityId: body.id,
-      details: `Received PO: ${po.poNumber}`, request,
+      details: `Received PO: raw materials stock updated`, request,
     })
   } else {
     await prisma.purchaseOrder.update({
@@ -122,7 +149,7 @@ export async function PUT(request: NextRequest) {
 
   const updated = await prisma.purchaseOrder.findUnique({
     where: { id: body.id },
-    include: { items: { include: { product: true } }, supplier: true },
+    include: { items: { include: { rawMaterial: true } }, supplier: true },
   })
 
   return NextResponse.json(updated)

@@ -34,14 +34,15 @@ enum ShiftType {
 // ============ CORE MODELS ============
 
 model Branch {
-  id              String    @id @default(cuid())
+  id              String       @id @default(cuid())
   name            String
-  address         String    @default("")
-  phone           String    @default("")
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
+  address         String       @default("")
+  phone           String       @default("")
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
   users           User[]
   products        Product[]
+  rawMaterials    RawMaterial[]
   transactions    Transaction[]
   suppliers       Supplier[]
   customers       Customer[]
@@ -153,14 +154,31 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product       @relation(fields: [productId], references: [id])
+  purchaseOrder   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product?       @relation(fields: [productId], references: [id])
+  rawMaterialId   String?
+  rawMaterial     RawMaterial?   @relation(fields: [rawMaterialId], references: [id])
+  itemName        String         @default("")
   quantity        Int
   cost            Float
   subtotal        Float
+}
+
+model RawMaterial {
+  id               String              @id @default(cuid())
+  name             String
+  unit             String              @default("pcs")
+  stock            Float               @default(0)
+  costPerUnit      Float               @default(0)
+  minStock         Float               @default(5)
+  branchId         String?
+  branch           Branch?             @relation(fields: [branchId], references: [id])
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  purchaseOrderItems PurchaseOrderItem[]
 }
 
 model Customer {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Eye, CheckCircle, XCircle, Clock, Send, Info, Trash2 } from "lucide-react"
+import { Plus, Eye, CheckCircle, XCircle, Clock, Send, Info, Trash2, Package } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 
 interface PO {
@@ -9,10 +9,10 @@ interface PO {
   supplier: { name: string }; creator: { name: string }; _count: { items: number }
 }
 interface PODetail extends PO {
-  items: { id: string; quantity: number; cost: number; subtotal: number; product: { name: string } }[]
+  items: { id: string; quantity: number; cost: number; subtotal: number; itemName: string; rawMaterial: { name: string; unit: string } | null }[]
 }
 interface Supplier { id: string; name: string }
-interface Product { id: string; name: string; cost: number; stock: number }
+interface RawMaterial { id: string; name: string; unit: string; stock: number; costPerUnit: number }
 
 export default function PurchaseOrdersPage() {
   const [pos, setPos] = useState<PO[]>([])
@@ -21,12 +21,11 @@ export default function PurchaseOrdersPage() {
   const [filterStatus, setFilterStatus] = useState("")
   const [showCreate, setShowCreate] = useState(false)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([])
 
-  // Create form state
   const [formSupplier, setFormSupplier] = useState("")
   const [formNotes, setFormNotes] = useState("")
-  const [formItems, setFormItems] = useState<{ productId: string; quantity: string; cost: string }[]>([])
+  const [formItems, setFormItems] = useState<{ rawMaterialId: string; quantity: string; cost: string }[]>([])
 
   const fc = (amount: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
@@ -42,7 +41,7 @@ export default function PurchaseOrdersPage() {
   useEffect(() => { fetchPOs() }, [filterStatus])
   useEffect(() => {
     apiFetch<Supplier[]>("/api/suppliers").then(setSuppliers).catch(console.error)
-    apiFetch<Product[]>("/api/products").then(setProducts).catch(console.error)
+    apiFetch<RawMaterial[]>("/api/raw-materials").then(setRawMaterials).catch(console.error)
   }, [])
 
   const viewDetail = async (id: string) => {
@@ -51,30 +50,43 @@ export default function PurchaseOrdersPage() {
   }
 
   const updateStatus = async (id: string, status: string) => {
-    if (status === "RECEIVED" && !confirm("Konfirmasi penerimaan barang? Stok produk akan otomatis bertambah sesuai jumlah di PO.")) return
+    if (status === "RECEIVED" && !confirm("Konfirmasi penerimaan bahan baku? Stok bahan baku akan otomatis bertambah.")) return
     await fetch("/api/purchase-orders", {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, status }),
     })
     fetchPOs(); setDetail(null)
+    // Refresh raw materials if received
+    if (status === "RECEIVED") {
+      apiFetch<RawMaterial[]>("/api/raw-materials").then(setRawMaterials).catch(console.error)
+    }
   }
 
-  const addItem = () => setFormItems([...formItems, { productId: "", quantity: "", cost: "" }])
+  const addItem = () => setFormItems([...formItems, { rawMaterialId: "", quantity: "", cost: "" }])
   const removeItem = (idx: number) => setFormItems(formItems.filter((_, i) => i !== idx))
   const updateItem = (idx: number, field: string, value: string) => {
-    setFormItems(formItems.map((item, i) => i === idx ? { ...item, [field]: value } : item))
+    setFormItems(formItems.map((item, i) => {
+      if (i !== idx) return item
+      const updated = { ...item, [field]: value }
+      // Auto-fill cost from raw material costPerUnit
+      if (field === "rawMaterialId") {
+        const mat = rawMaterials.find((m) => m.id === value)
+        if (mat) updated.cost = mat.costPerUnit.toString()
+      }
+      return updated
+    }))
   }
 
   const handleCreatePO = async (e: React.FormEvent) => {
     e.preventDefault()
     const items = formItems
-      .filter((i) => i.productId && i.quantity)
+      .filter((i) => i.rawMaterialId && i.quantity)
       .map((i) => ({
-        productId: i.productId,
+        rawMaterialId: i.rawMaterialId,
         quantity: parseInt(i.quantity) || 0,
         cost: parseFloat(i.cost) || 0,
       }))
-    if (items.length === 0) { alert("Tambahkan minimal 1 item"); return }
+    if (items.length === 0) { alert("Tambahkan minimal 1 bahan baku"); return }
 
     await fetch("/api/purchase-orders", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -88,7 +100,7 @@ export default function PurchaseOrdersPage() {
     const map: Record<string, { cls: string; label: string }> = {
       DRAFT: { cls: "bg-gray-100 text-gray-700", label: "Draft" },
       SENT: { cls: "bg-blue-100 text-blue-700", label: "Dikirim ke Supplier" },
-      RECEIVED: { cls: "bg-green-100 text-green-700", label: "Barang Diterima" },
+      RECEIVED: { cls: "bg-green-100 text-green-700", label: "Bahan Baku Diterima" },
       CANCELLED: { cls: "bg-red-100 text-red-700", label: "Dibatalkan" },
     }
     const s = map[status] || map.DRAFT
@@ -101,15 +113,14 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Purchase Order (PO)</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Purchase Order (Bahan Baku)</h1>
 
-      {/* Info Banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
         <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
         <div className="text-sm text-blue-800">
-          <p className="font-semibold mb-1">Apa itu Purchase Order?</p>
-          <p>PO adalah <strong>surat pesanan resmi ke supplier</strong> untuk membeli barang. Data produk dan supplier diambil dari yang sudah Anda daftarkan di menu Supplier dan Produk.</p>
-          <p className="mt-1"><strong>Flow:</strong> Buat PO (Draft) → Kirim ke Supplier (Sent) → Barang Datang & Diterima (Received) → <strong>Stok Bertambah Otomatis</strong></p>
+          <p className="font-semibold mb-1">Purchase Order untuk Bahan Baku</p>
+          <p>PO digunakan untuk <strong>memesan bahan baku dari supplier</strong>, bukan produk jadi. Saat PO diterima, <strong>stok bahan baku otomatis bertambah</strong>. Kelola daftar bahan baku di menu <strong>Bahan Baku</strong>.</p>
+          <p className="mt-1"><strong>Flow:</strong> Buat PO → Pilih Supplier & Bahan Baku → Kirim ke Supplier → Terima Barang → <strong>Stok Bahan Baku Bertambah</strong></p>
         </div>
       </div>
 
@@ -119,11 +130,11 @@ export default function PurchaseOrdersPage() {
           <option value="">Semua Status</option>
           <option value="DRAFT">Draft</option>
           <option value="SENT">Dikirim ke Supplier</option>
-          <option value="RECEIVED">Barang Diterima</option>
+          <option value="RECEIVED">Bahan Baku Diterima</option>
           <option value="CANCELLED">Dibatalkan</option>
         </select>
         <button onClick={() => setShowCreate(true)} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
-          <Plus className="w-4 h-4" /> Buat PO Baru
+          <Plus className="w-4 h-4" /> Buat PO Bahan Baku
         </button>
       </div>
 
@@ -131,7 +142,7 @@ export default function PurchaseOrdersPage() {
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Buat Purchase Order Baru</h2>
+            <h2 className="text-xl font-bold mb-4">Buat PO Bahan Baku</h2>
             <form onSubmit={handleCreatePO} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -151,45 +162,50 @@ export default function PurchaseOrdersPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700">Item Pesanan</label>
-                  <button type="button" onClick={addItem} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Plus className="w-3 h-3" /> Tambah Item</button>
+                  <label className="text-sm font-medium text-gray-700">Bahan Baku yang Dipesan</label>
+                  <button type="button" onClick={addItem} className="text-sm text-blue-600 hover:underline flex items-center gap-1"><Plus className="w-3 h-3" /> Tambah Bahan Baku</button>
                 </div>
                 {formItems.length === 0 && (
                   <div className="text-center py-6 bg-gray-50 rounded-lg text-gray-400 text-sm">
-                    Klik "Tambah Item" untuk menambahkan produk yang ingin dipesan
+                    Klik "Tambah Bahan Baku" untuk menambahkan bahan baku yang ingin dipesan
                   </div>
                 )}
                 <div className="space-y-2">
-                  {formItems.map((item, idx) => (
-                    <div key={idx} className="flex gap-2 items-end bg-gray-50 p-3 rounded-lg">
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-500">Produk</label>
-                        <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)}
-                          className="w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                          <option value="">-- Pilih --</option>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>)}
-                        </select>
+                  {formItems.map((item, idx) => {
+                    const mat = rawMaterials.find((m) => m.id === item.rawMaterialId)
+                    return (
+                      <div key={idx} className="flex gap-2 items-end bg-gray-50 p-3 rounded-lg">
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-500">Bahan Baku</label>
+                          <select value={item.rawMaterialId} onChange={(e) => updateItem(idx, "rawMaterialId", e.target.value)}
+                            className="w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="">-- Pilih --</option>
+                            {rawMaterials.map((m) => <option key={m.id} value={m.id}>{m.name} (Stok: {m.stock} {m.unit})</option>)}
+                          </select>
+                        </div>
+                        <div className="w-20">
+                          <label className="text-xs text-gray-500">Jumlah</label>
+                          <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)}
+                            className="w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" />
+                        </div>
+                        <div className="w-20">
+                          <label className="text-xs text-gray-500">Satuan</label>
+                          <p className="text-sm text-gray-600 py-1.5">{mat?.unit || "-"}</p>
+                        </div>
+                        <div className="w-28">
+                          <label className="text-xs text-gray-500">Harga/{mat?.unit || "unit"}</label>
+                          <input type="number" min="0" value={item.cost} onChange={(e) => updateItem(idx, "cost", e.target.value)}
+                            className="w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <button type="button" onClick={() => removeItem(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded mb-0.5">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <div className="w-20">
-                        <label className="text-xs text-gray-500">Jumlah</label>
-                        <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)}
-                          className="w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                      </div>
-                      <div className="w-28">
-                        <label className="text-xs text-gray-500">Harga Modal</label>
-                        <input type="number" min="0" value={item.cost} onChange={(e) => updateItem(idx, "cost", e.target.value)}
-                          className="w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                      </div>
-                      <button type="button" onClick={() => removeItem(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded mb-0.5">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 {formItems.length > 0 && (
-                  <div className="text-right mt-2 text-sm font-bold text-gray-800">
-                    Total: {fc(formTotal)}
-                  </div>
+                  <div className="text-right mt-2 text-sm font-bold text-gray-800">Total: {fc(formTotal)}</div>
                 )}
               </div>
 
@@ -202,7 +218,7 @@ export default function PurchaseOrdersPage() {
         </div>
       )}
 
-      {/* Desktop Table */}
+      {/* PO List - Table */}
       <div className="hidden md:block bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -224,7 +240,7 @@ export default function PurchaseOrdersPage() {
                     <p className="text-xs text-gray-500">{new Date(po.createdAt).toLocaleDateString("id-ID")} · {po.creator.name}</p>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{po.supplier.name}</td>
-                  <td className="px-6 py-4 text-center text-sm">{po._count.items}</td>
+                  <td className="px-6 py-4 text-center text-sm">{po._count.items} bahan</td>
                   <td className="px-6 py-4 text-right text-sm font-semibold">{fc(po.totalAmount)}</td>
                   <td className="px-6 py-4 text-center">{statusBadge(po.status)}</td>
                   <td className="px-6 py-4 text-center">
@@ -237,7 +253,7 @@ export default function PurchaseOrdersPage() {
                   </td>
                 </tr>
               ))}
-              {pos.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">Belum ada Purchase Order. Klik "Buat PO Baru" untuk memulai.</td></tr>}
+              {pos.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">Belum ada PO. Klik "Buat PO Bahan Baku" untuk memulai.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -255,12 +271,12 @@ export default function PurchaseOrdersPage() {
               {statusBadge(po.status)}
             </div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t">
-              <span className="text-xs text-gray-500">{po._count.items} item · {po.creator.name}</span>
+              <span className="text-xs text-gray-500">{po._count.items} bahan · {po.creator.name}</span>
               <span className="font-bold text-sm text-blue-600">{fc(po.totalAmount)}</span>
             </div>
             <div className="flex gap-2 mt-2">
               <button onClick={() => viewDetail(po.id)} className="flex-1 text-xs text-blue-600 py-1.5 bg-blue-50 rounded-lg">Detail</button>
-              {po.status === "SENT" && <button onClick={() => updateStatus(po.id, "RECEIVED")} className="flex-1 text-xs bg-green-50 text-green-600 py-1.5 rounded-lg">Terima Barang</button>}
+              {po.status === "SENT" && <button onClick={() => updateStatus(po.id, "RECEIVED")} className="flex-1 text-xs bg-green-50 text-green-600 py-1.5 rounded-lg">Terima Bahan Baku</button>}
             </div>
           </div>
         ))}
@@ -284,13 +300,13 @@ export default function PurchaseOrdersPage() {
               {detail.receivedAt && <div className="flex justify-between"><span className="text-gray-500">Diterima</span><span>{new Date(detail.receivedAt).toLocaleString("id-ID")}</span></div>}
             </div>
             <div className="border-t pt-3">
-              <h3 className="font-medium mb-2 text-sm">Item yang Dipesan</h3>
+              <h3 className="font-medium mb-2 text-sm">Bahan Baku yang Dipesan</h3>
               <div className="space-y-2">
                 {detail.items.map((item) => (
                   <div key={item.id} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg text-sm">
                     <div>
-                      <p className="font-medium">{item.product.name}</p>
-                      <p className="text-xs text-gray-500">{item.quantity} x {fc(item.cost)}</p>
+                      <p className="font-medium">{item.rawMaterial?.name || item.itemName}</p>
+                      <p className="text-xs text-gray-500">{item.quantity} {item.rawMaterial?.unit || "pcs"} x {fc(item.cost)}</p>
                     </div>
                     <p className="font-semibold">{fc(item.subtotal)}</p>
                   </div>
@@ -301,7 +317,7 @@ export default function PurchaseOrdersPage() {
               <span>Total</span><span>{fc(detail.totalAmount)}</span>
             </div>
             <div className="flex gap-2 mt-4">
-              {detail.status === "SENT" && <button onClick={() => updateStatus(detail.id, "RECEIVED")} className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 text-sm font-medium">Konfirmasi Terima Barang</button>}
+              {detail.status === "SENT" && <button onClick={() => updateStatus(detail.id, "RECEIVED")} className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 text-sm font-medium">Konfirmasi Terima Bahan Baku</button>}
               <button onClick={() => setDetail(null)} className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 text-sm">Tutup</button>
             </div>
           </div>

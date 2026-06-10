@@ -21,6 +21,7 @@ import {
   UserCheck,
   Clock,
   ScrollText,
+  Box,
 } from "lucide-react"
 import Logo from "./Logo"
 
@@ -33,7 +34,8 @@ const navItems = [
   { href: "/dashboard/reports", label: "Laporan", icon: BarChart3 },
   { href: "/dashboard/customers", label: "Customer", icon: UserCheck },
   { href: "/dashboard/suppliers", label: "Supplier", icon: Truck },
-  { href: "/dashboard/purchase-orders", label: "Purchase Order", icon: ClipboardList },
+  { href: "/dashboard/raw-materials", label: "Bahan Baku", icon: Box },
+  { href: "/dashboard/purchase-orders", label: "PO Bahan Baku", icon: ClipboardList },
   { href: "/dashboard/shifts", label: "Shift Kasir", icon: Clock },
   { href: "/dashboard/branches", label: "Cabang", icon: Building2, adminOnly: true },
   { href: "/dashboard/audit", label: "Audit Log", icon: ScrollText, adminOnly: true },
