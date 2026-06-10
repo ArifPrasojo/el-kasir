@@ -351,7 +351,23 @@ model TransactionItem {
 
 ## Fitur Utama
 
-### 1. Authentication & Authorization
+### 1. Dashboard Analytics
+
+![Dashboard Analytics](public/screenshots/dashboard.png)
+
+Dashboard lengkap dengan analisis penjualan mendalam:
+- **KPI Cards**: Penjualan hari ini (dengan % perubahan vs kemarin), transaksi, penjualan bulanan, estimasi profit 30 hari
+- **Tren Penjualan 30 Hari**: Area chart dengan toggle Pendapatan/Profit
+- **Penjualan per Kategori**: Donut chart dengan persentase breakdown
+- **Produk Terlaris**: Tabel top 10 produk dengan qty, revenue, profit, dan margin %
+- **Distribusi Penjualan per Jam**: Bar chart penjualan per jam (06:00-22:00)
+- **Transaksi Terbaru**: 5 transaksi terakhir dengan detail kasir dan item
+- **Peringatan Stok Rendah**: Notifikasi produk dengan stok <=5
+
+### 2. Authentication & Authorization
+
+![Login Page](public/screenshots/login.png)
+
 - Login dengan email dan password
 - Password di-hash menggunakan bcrypt
 - JWT session management via NextAuth.js
@@ -366,6 +382,9 @@ model TransactionItem {
 - Peringatan stok rendah
 
 ### 3. Kasir / POS (Point of Sale)
+
+![POS / Kasir](public/screenshots/pos.png)
+
 - Grid produk dengan pencarian dan filter kategori
 - Keranjang belanja dengan kontrol kuantitas (+/-)
 - Input pembayaran dengan format Rupiah otomatis (prefix "Rp")
@@ -375,6 +394,9 @@ model TransactionItem {
 - Auto-generate nomor transaksi (format: TRX YYYYMMDD-0001)
 
 ### 4. Manajemen Produk
+
+![Manajemen Produk](public/screenshots/products.png)
+
 - CRUD produk (Admin only)
 - Filter berdasarkan kategori dan pencarian
 - Tracking stok dengan peringatan stok rendah (<=5)
@@ -387,11 +409,17 @@ model TransactionItem {
 - Relasi satu-ke-banyak dengan produk
 
 ### 6. Riwayat Transaksi
+
+![Riwayat Transaksi](public/screenshots/transactions.png)
+
 - Daftar semua transaksi dengan filter tanggal
 - Detail transaksi: items, jumlah, kasir
 - Nomor transaksi unik untuk tracking
 
 ### 7. Laporan Penjualan
+
+![Laporan Penjualan](public/screenshots/reports.png)
+
 - Filter berdasarkan rentang tanggal
 - Ringkasan: total pendapatan, transaksi, modal, keuntungan
 - Detail per transaksi
