@@ -389,7 +389,7 @@ export default function POSPage() {
       {showReceipt && receiptData && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl">
-            <div ref={receiptRef} className="p-5">
+            <div ref={receiptRef} className="receipt-print p-5">
               <h2 className="text-lg font-bold text-center">El-Kasir</h2>
               {receiptData.branchName && (
                 <p className="text-center text-xs text-gray-500">{receiptData.branchName}</p>
