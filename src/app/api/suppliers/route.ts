@@ -7,49 +7,66 @@ import { auditLog } from "@/lib/audit"
 import { getSearchParams } from "@/lib/api-client"
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
   try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    // Ambil suppliers dulu
     const suppliers = await prisma.supplier.findMany({
       include: {
         _count: { select: { purchaseOrders: true } },
         branch: { select: { name: true } },
-        supplierMaterials: {
-          include: {
-            rawMaterial: { select: { id: true, name: true, unit: true, stock: true } },
-          },
-        },
       },
       orderBy: { name: "asc" },
     })
-    return NextResponse.json(suppliers)
+
+    // Ambil supplierMaterials terpisah untuk menghindari nested include issue
+    const supplierIds = suppliers.map((s) => s.id)
+    const supplierMaterials = supplierIds.length > 0
+      ? await prisma.supplierMaterial.findMany({
+          where: { supplierId: { in: supplierIds } },
+          include: {
+            rawMaterial: { select: { id: true, name: true, unit: true, stock: true } },
+          },
+        })
+      : []
+
+    // Gabungkan manual
+    const result = suppliers.map((s) => ({
+      ...s,
+      supplierMaterials: supplierMaterials.filter((sm) => sm.supplierId === s.id),
+    }))
+
+    return NextResponse.json(result)
   } catch (error) {
-    console.error("GET /api/suppliers error:", error)
-    return NextResponse.json({ error: "Gagal memuat data supplier" }, { status: 500 })
+    console.error("[GET /api/suppliers]", error)
+    return NextResponse.json(
+      { error: "Gagal memuat data supplier", detail: String(error) },
+      { status: 500 }
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if ((session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  const body = await request.json()
-  const name = sanitizeString(body.name)
-  if (!name) return NextResponse.json({ error: "Nama supplier wajib diisi" }, { status: 400 })
-
-  // materialIds: array of { rawMaterialId, pricePerUnit }
-  const materialLinks: { rawMaterialId: string; pricePerUnit: number }[] = (body.materials || []).map(
-    (m: { rawMaterialId: string; pricePerUnit: number }) => ({
-      rawMaterialId: sanitizeString(m.rawMaterialId),
-      pricePerUnit: Number(m.pricePerUnit) || 0,
-    })
-  ).filter((m: { rawMaterialId: string }) => m.rawMaterialId)
-
   try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if ((session.user as { role?: string }).role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const name = sanitizeString(body.name)
+    if (!name) return NextResponse.json({ error: "Nama supplier wajib diisi" }, { status: 400 })
+
+    const materialLinks: { rawMaterialId: string; pricePerUnit: number }[] = (body.materials || [])
+      .map((m: { rawMaterialId: string; pricePerUnit: number }) => ({
+        rawMaterialId: sanitizeString(m.rawMaterialId),
+        pricePerUnit: Number(m.pricePerUnit) || 0,
+      }))
+      .filter((m: { rawMaterialId: string }) => !!m.rawMaterialId)
+
+    // Buat supplier dulu
     const supplier = await prisma.supplier.create({
       data: {
         name,
@@ -57,14 +74,20 @@ export async function POST(request: NextRequest) {
         phone: sanitizeString(body.phone),
         address: sanitizeString(body.address),
         branchId: body.branchId || null,
-        supplierMaterials: materialLinks.length > 0
-          ? { create: materialLinks }
-          : { create: [] },
-      },
-      include: {
-        supplierMaterials: { include: { rawMaterial: { select: { id: true, name: true, unit: true } } } },
       },
     })
+
+    // Buat supplierMaterials secara terpisah
+    if (materialLinks.length > 0) {
+      await prisma.supplierMaterial.createMany({
+        data: materialLinks.map((m) => ({
+          supplierId: supplier.id,
+          rawMaterialId: m.rawMaterialId,
+          pricePerUnit: m.pricePerUnit,
+        })),
+        skipDuplicates: true,
+      })
+    }
 
     await auditLog({
       userId: (session.user as { id: string }).id,
@@ -72,55 +95,63 @@ export async function POST(request: NextRequest) {
       details: `Created supplier: ${name} with ${materialLinks.length} materials`, request,
     })
 
-    return NextResponse.json(supplier, { status: 201 })
+    // Return dengan materials
+    const withMaterials = await prisma.supplierMaterial.findMany({
+      where: { supplierId: supplier.id },
+      include: { rawMaterial: { select: { id: true, name: true, unit: true } } },
+    })
+
+    return NextResponse.json({ ...supplier, supplierMaterials: withMaterials }, { status: 201 })
   } catch (error) {
-    console.error("POST /api/suppliers error:", error)
-    return NextResponse.json({ error: "Gagal menambahkan supplier" }, { status: 500 })
+    console.error("[POST /api/suppliers]", error)
+    return NextResponse.json({ error: "Gagal membuat supplier", detail: String(error) }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if ((session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  const body = await request.json()
-  const id = sanitizeString(body.id)
-  if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
-
-  const materialLinks: { rawMaterialId: string; pricePerUnit: number }[] = (body.materials || []).map(
-    (m: { rawMaterialId: string; pricePerUnit: number }) => ({
-      rawMaterialId: sanitizeString(m.rawMaterialId),
-      pricePerUnit: Number(m.pricePerUnit) || 0,
-    })
-  ).filter((m: { rawMaterialId: string }) => m.rawMaterialId)
-
   try {
-    // Replace all supplierMaterials: delete old, create new
-    await prisma.$transaction(async (tx) => {
-      await tx.supplierMaterial.deleteMany({ where: { supplierId: id } })
-      await tx.supplier.update({
-        where: { id },
-        data: {
-          name: sanitizeString(body.name),
-          email: sanitizeString(body.email),
-          phone: sanitizeString(body.phone),
-          address: sanitizeString(body.address),
-          branchId: body.branchId || null,
-          isActive: body.isActive !== false,
-          ...(materialLinks.length > 0 ? { supplierMaterials: { create: materialLinks } } : {}),
-        },
-      })
-    })
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if ((session.user as { role?: string }).role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
 
-    const supplier = await prisma.supplier.findUnique({
+    const body = await request.json()
+    const id = sanitizeString(body.id)
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
+
+    const materialLinks: { rawMaterialId: string; pricePerUnit: number }[] = (body.materials || [])
+      .map((m: { rawMaterialId: string; pricePerUnit: number }) => ({
+        rawMaterialId: sanitizeString(m.rawMaterialId),
+        pricePerUnit: Number(m.pricePerUnit) || 0,
+      }))
+      .filter((m: { rawMaterialId: string }) => !!m.rawMaterialId)
+
+    // Update supplier info
+    await prisma.supplier.update({
       where: { id },
-      include: {
-        supplierMaterials: { include: { rawMaterial: { select: { id: true, name: true, unit: true } } } },
+      data: {
+        name: sanitizeString(body.name),
+        email: sanitizeString(body.email),
+        phone: sanitizeString(body.phone),
+        address: sanitizeString(body.address),
+        branchId: body.branchId || null,
+        isActive: body.isActive !== false,
       },
     })
+
+    // Replace materials: delete lama, buat baru
+    await prisma.supplierMaterial.deleteMany({ where: { supplierId: id } })
+    if (materialLinks.length > 0) {
+      await prisma.supplierMaterial.createMany({
+        data: materialLinks.map((m) => ({
+          supplierId: id,
+          rawMaterialId: m.rawMaterialId,
+          pricePerUnit: m.pricePerUnit,
+        })),
+        skipDuplicates: true,
+      })
+    }
 
     await auditLog({
       userId: (session.user as { id: string }).id,
@@ -128,33 +159,57 @@ export async function PUT(request: NextRequest) {
       details: `Updated supplier with ${materialLinks.length} materials`, request,
     })
 
-    return NextResponse.json(supplier)
+    const supplier = await prisma.supplier.findUnique({ where: { id } })
+    const withMaterials = await prisma.supplierMaterial.findMany({
+      where: { supplierId: id },
+      include: { rawMaterial: { select: { id: true, name: true, unit: true } } },
+    })
+
+    return NextResponse.json({ ...supplier, supplierMaterials: withMaterials })
   } catch (error) {
-    console.error("PUT /api/suppliers error:", error)
-    return NextResponse.json({ error: "Gagal mengupdate supplier" }, { status: 500 })
+    console.error("[PUT /api/suppliers]", error)
+    return NextResponse.json({ error: "Gagal update supplier", detail: String(error) }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if ((session.user as { role?: string }).role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  const searchParams = getSearchParams(request.url)
-  const id = searchParams.get("id")
-  if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
-
   try {
-    // supplierMaterials ter-cascade delete karena onDelete: Cascade di schema
-    await prisma.supplier.delete({ where: { id } })
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if ((session.user as { role?: string }).role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const searchParams = getSearchParams(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
+
+    // Cek apakah supplier masih punya PO aktif
+    const activePO = await prisma.purchaseOrder.findFirst({
+      where: { supplierId: id, status: { in: ["DRAFT", "SENT"] } },
+    })
+    if (activePO) {
+      return NextResponse.json({ error: "Supplier masih memiliki Purchase Order aktif" }, { status: 400 })
+    }
+
+    // Hapus materials + supplier dalam satu transaction (atomic)
+    await prisma.$transaction(async (tx) => {
+      await tx.supplierMaterial.deleteMany({ where: { supplierId: id } })
+      await tx.supplier.delete({ where: { id } })
+    })
+
     await auditLog({
       userId: (session.user as { id: string }).id,
       action: "DELETE", entity: "Supplier", entityId: id, request,
     })
     return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: "Supplier masih memiliki Purchase Order" }, { status: 400 })
+  } catch (error) {
+    console.error("[DELETE /api/suppliers]", error)
+    // Cek jika foreign key constraint (masih ada PO completed/cancelled)
+    const msg = String(error)
+    if (msg.includes("foreign key") || msg.includes("constraint")) {
+      return NextResponse.json({ error: "Supplier masih memiliki riwayat Purchase Order" }, { status: 400 })
+    }
+    return NextResponse.json({ error: "Gagal menghapus supplier" }, { status: 500 })
   }
 }

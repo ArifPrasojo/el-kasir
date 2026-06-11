@@ -134,7 +134,8 @@ export async function POST(request: NextRequest) {
           transactionNumber,
           totalAmount: body.totalAmount,
           paymentAmount: body.paymentAmount,
-          changeAmount: body.changeAmount ?? 0,
+          // Hitung changeAmount di server — jangan percaya nilai dari client
+          changeAmount: Math.max(0, body.paymentAmount - body.totalAmount),
           userId: sessionUser.id,
           branchId: sessionUser.branchId ?? null,
           customerId: body.customerId ?? null,

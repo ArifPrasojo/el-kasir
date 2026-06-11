@@ -2,38 +2,51 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
+/**
+ * Safe redirect helper — menghindari "Invalid URL" di Turbopack dev mode
+ * yang bisa mengirim request.url sebagai path relatif.
+ */
+function redirect(request: NextRequest, path: string) {
+  const url = request.nextUrl.clone()
+  url.pathname = path
+  url.search = ""
+  return NextResponse.redirect(url)
+}
+
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
   const { pathname } = request.nextUrl
 
-  // Allow access to login page and API auth routes
-  if (
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/api/auth")
-  ) {
+  // Login & auth routes — selalu lolos
+  if (pathname.startsWith("/login") || pathname.startsWith("/api/auth")) {
+    // Sudah login → redirect ke dashboard
     if (token && pathname.startsWith("/login")) {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      return redirect(request, "/dashboard")
     }
     return NextResponse.next()
   }
 
-  // Redirect to login if not authenticated
+  // Belum login → redirect ke login
   if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url))
+    return redirect(request, "/login")
   }
 
-  // Role-based access control
-  const adminOnlyPaths = ["/dashboard/users", "/dashboard/branches", "/dashboard/audit"]
-  if (adminOnlyPaths.some((p) => pathname.startsWith(p)) && token.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
-  // Shifts feature removed - redirect to dashboard
+  // Fitur shift dihapus → redirect ke dashboard
   if (pathname.startsWith("/dashboard/shifts")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return redirect(request, "/dashboard")
   }
 
-  // Cashier access control - restrict admin-only pages
+  // Halaman khusus admin
+  const adminOnlyPaths = [
+    "/dashboard/users",
+    "/dashboard/branches",
+    "/dashboard/audit",
+  ]
+  if (adminOnlyPaths.some((p) => pathname.startsWith(p)) && token.role !== "ADMIN") {
+    return redirect(request, "/dashboard")
+  }
+
+  // Halaman yang kasir tidak boleh akses
   const cashierRestrictedPaths = [
     "/dashboard/products",
     "/dashboard/categories",
@@ -45,7 +58,7 @@ export async function middleware(request: NextRequest) {
     cashierRestrictedPaths.some((p) => pathname.startsWith(p)) &&
     token.role !== "ADMIN"
   ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return redirect(request, "/dashboard")
   }
 
   return NextResponse.next()
