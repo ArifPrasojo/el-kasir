@@ -1,6 +1,6 @@
 # El-Kasir — Sistem Kasir Multi-Cabang
 
-Sistem Point of Sale (POS) berbasis web yang dibangun dengan Next.js, TypeScript, Prisma ORM, dan PostgreSQL. Dirancang untuk bisnis dengan satu atau lebih outlet/cabang, dengan pemisahan data dan akses per peran pengguna.
+Sistem Point of Sale (POS) berbasis web yang dibangun dengan Next.js, TypeScript, dan Prisma ORM dengan database **SQLite lokal** (`dev.db`). Berjalan 100% offline tanpa server database eksternal. Dirancang untuk bisnis dengan satu atau lebih outlet/cabang, dengan pemisahan data dan akses per peran pengguna.
 
 ---
 
@@ -28,8 +28,8 @@ Sistem Point of Sale (POS) berbasis web yang dibangun dengan Next.js, TypeScript
 | **TypeScript** | 5.x | Type-safety |
 | **React** | 19.x | UI library |
 | **Tailwind CSS** | 4.x | Styling utility-first |
-| **Prisma ORM** | 7.x | Database ORM dengan PostgreSQL adapter |
-| **PostgreSQL** | — | Database via Supabase |
+| **Prisma ORM** | 7.x | Database ORM dengan driver adapter `@prisma/adapter-better-sqlite3` |
+| **SQLite** | — | Database lokal dalam satu file (`dev.db`), tanpa server |
 | **NextAuth.js** | 4.x | Autentikasi JWT credentials-based |
 | **Recharts** | 3.x | Chart & analytics |
 | **Lucide React** | 1.x | Icon library |
@@ -189,7 +189,8 @@ RawMaterial ─────────── PurchaseOrderItem (banyak)
 
 - Node.js >= 18.x
 - npm >= 9.x
-- Akun [Supabase](https://supabase.com) atau PostgreSQL lainnya
+
+> Tidak perlu install atau setup server database apapun — SQLite berjalan langsung dari file lokal.
 
 ### 1. Clone & Install
 
@@ -210,21 +211,12 @@ cp .env.example .env
 Isi variabel berikut:
 
 ```env
-# PostgreSQL — Transaction Pooler untuk runtime aplikasi
-DATABASE_URL="postgresql://postgres.[ref]:[password]@[host]:6543/postgres"
-
-# PostgreSQL — Direct Connection untuk migrasi schema
-DIRECT_URL="postgresql://postgres.[ref]:[password]@[host]:5432/postgres"
+# Database SQLite lokal (file dibuat otomatis oleh Prisma)
+DATABASE_URL="file:./dev.db"
 
 # NextAuth
 NEXTAUTH_SECRET="isi-dengan-random-string-minimal-32-karakter"
 NEXTAUTH_URL="http://localhost:3000"
-
-# AWS S3 (opsional, untuk fitur upload gambar produk)
-AWS_ACCESS_KEY_ID=""
-AWS_SECRET_ACCESS_KEY=""
-AWS_REGION=""
-AWS_BUCKET_NAME=""
 
 # Redis (opsional, untuk rate limiting)
 REDIS_URL=""
@@ -238,11 +230,11 @@ REDIS_URL=""
 ### 3. Setup Database
 
 ```bash
-# Sync schema ke database
-npx prisma db push
-
 # Generate Prisma client
 npx prisma generate
+
+# Sync schema ke file dev.db (dibuat otomatis)
+npx prisma db push
 
 # Isi data awal
 npx prisma db seed
@@ -302,9 +294,8 @@ Contoh supplier dan bahan baku yang tersedia:
 ```
 el-kasir/
 ├── prisma/
-│   ├── schema.prisma          # Schema database PostgreSQL
-│   ├── seed.ts                # Data awal lengkap
-│   └── migrations/            # Riwayat migrasi
+│   ├── schema.prisma          # Schema database SQLite
+│   └── seed.ts                # Data awal lengkap
 ├── public/
 │   ├── logo.svg
 │   └── screenshots/
@@ -365,9 +356,9 @@ el-kasir/
 │   │   └── prisma/                   # Prisma client hasil generate
 │   └── middleware.ts                 # Guard autentikasi & kontrol akses berbasis role
 ├── .env                              # Environment variables (tidak di-commit)
-├── .env.example                      # Template environment
+├── dev.db                            # File database SQLite lokal
 ├── next.config.ts                    # Konfigurasi Next.js
-├── prisma.config.ts                  # Konfigurasi Prisma (DIRECT_URL untuk migrasi)
+├── prisma.config.ts                  # Konfigurasi Prisma (DATABASE_URL untuk migrasi)
 ├── package.json
 └── tsconfig.json
 ```
@@ -445,33 +436,35 @@ npx prisma migrate dev    # Buat migration baru
 
 ## Deployment
 
-### Vercel + Supabase
+### Penggunaan Lokal / Komputer Toko (Rekomendasi)
 
-1. Push kode ke GitHub
-2. Buat project baru di [Vercel](https://vercel.com) dan connect repo
-3. Set environment variables di Vercel Dashboard:
-   - `DATABASE_URL` — Transaction Pooler URL (port 6543)
-   - `DIRECT_URL` — Direct Connection URL (port 5432)
-   - `NEXTAUTH_SECRET`
-   - `NEXTAUTH_URL` — URL domain production
-4. Deploy
+Sistem ini sangat cocok dijalankan langsung di komputer toko / POS:
 
-> **Catatan Supabase:** Gunakan dua URL berbeda karena Transaction Pooler (port 6543) digunakan runtime aplikasi, sedangkan Direct Connection (port 5432) digunakan saat menjalankan migrasi schema.
+```bash
+# Build aplikasi
+npm run build
+
+# Jalankan server produksi
+npm run start
+```
+
+Buka `http://localhost:3000` pada browser komputer lokal atau perangkat yang terhubung dalam satu jaringan LAN.
+
+> **Catatan Serverless / Vercel:** SQLite menyimpan data dalam file lokal `dev.db`. Platform *serverless* seperti Vercel tidak menyimpan state file secara permanen (ephemeral filesystem). Jika ingin deploy ke cloud publik secara permanen, gunakan VPS (seperti DigitalOcean, AWS EC2, Hetzner) atau kembalikan provider Prisma ke PostgreSQL (Supabase/Neon).
 
 ---
 
 ## Catatan Database
 
-Proyek ini menggunakan **PostgreSQL** melalui Supabase dengan **Prisma ORM v7** dan adapter `@prisma/adapter-pg`.
+Proyek ini menggunakan **SQLite lokal** melalui driver adapter `@prisma/adapter-better-sqlite3` dan **Prisma ORM v7**.
 
 Poin penting:
-- **`DATABASE_URL`** — Transaction Pooler, digunakan oleh aplikasi di runtime
-- **`DIRECT_URL`** — Direct Connection, digunakan oleh Prisma saat migrasi
+- **`DATABASE_URL="file:./dev.db"`** — Menyimpan seluruh data aplikasi ke dalam satu file lokal `dev.db`
 - Prisma client di-generate ke `src/generated/prisma/` (custom output path)
-- Schema memuat tabel `SupplierMaterial` sebagai join table many-to-many antara `Supplier` dan `RawMaterial`
-- Semua data transaksi, customer, dan laporan di-scope berdasarkan `userId` atau `branchId` sesuai role pengguna
+- SQLite tidak mendukung enum bawaan; semua tipe role dan status disimpan sebagai `String`
+- Backup data sangat mudah: cukup buat salinan/copy dari file `dev.db`
 
-Untuk reset dan isi ulang database:
+Untuk reset total dan isi ulang database dari nol:
 
 ```bash
 npx prisma db push --force-reset
@@ -484,6 +477,14 @@ npx prisma db seed
 ## Catatan Perubahan
 
 ### Versi Terbaru
+
+**Migrasi ke SQLite Lokal**
+- Mengganti PostgreSQL (Supabase) dengan SQLite lokal (`dev.db`)
+- Menggunakan driver adapter `@prisma/adapter-better-sqlite3`
+- Menghapus ketergantungan paket `pg` dan `@prisma/adapter-pg`
+- Menghapus variabel `DIRECT_URL` dari konfigurasi
+- Mengubah tipe `Enum` pada schema menjadi `String` biasa agar kompatibel dengan SQLite
+- Sistem berjalan 100% offline dan tidak membutuhkan server database eksternal
 
 **Fitur Shift dihapus**
 - Menu Shift Kasir tidak lagi tersedia

@@ -1,9 +1,9 @@
-import { PrismaClient, Role } from "../src/generated/prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
+import { PrismaClient } from "../src/generated/prisma/client"
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3"
 import bcrypt from "bcryptjs"
 import "dotenv/config"
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
@@ -63,7 +63,7 @@ async function main() {
       name: "Administrator",
       email: "admin@elkasir.com",
       password: adminPass,
-      role: Role.ADMIN,
+      role: "ADMIN",
       branchId: branchUtama.id,
     },
   })
@@ -75,7 +75,7 @@ async function main() {
       name: "Budi Santoso",
       email: "kasir1@elkasir.com",
       password: kasirPass,
-      role: Role.CASHIER,
+      role: "CASHIER",
       branchId: branchUtama.id,
     },
   })
@@ -88,7 +88,7 @@ async function main() {
       name: "Kasir 1",
       email: "kasir@elkasir.com",
       password: kasirPass,
-      role: Role.CASHIER,
+      role: "CASHIER",
       branchId: branchUtama.id,
     },
   })
@@ -100,7 +100,7 @@ async function main() {
       name: "Siti Rahayu",
       email: "kasir2@elkasir.com",
       password: kasirPass,
-      role: Role.CASHIER,
+      role: "CASHIER",
       branchId: branchBandung.id,
     },
   })
@@ -112,7 +112,7 @@ async function main() {
       name: "Rudi Hermawan",
       email: "kasir3@elkasir.com",
       password: kasirPass,
-      role: Role.CASHIER,
+      role: "CASHIER",
       branchId: branchSurabaya.id,
     },
   })

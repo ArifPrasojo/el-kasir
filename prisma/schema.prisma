@@ -4,32 +4,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
-// ============ ENUMS ============
-
-enum Role {
-  ADMIN
-  CASHIER
-}
-
-enum POStatus {
-  DRAFT
-  SENT
-  RECEIVED
-  CANCELLED
-}
-
-enum ShiftStatus {
-  OPEN
-  CLOSED
-}
-
-enum ShiftType {
-  PAGI
-  MALAM
-}
+// ============ ENUMS (Removed for SQLite) ============
 
 // ============ CORE MODELS ============
 
@@ -55,7 +33,7 @@ model User {
   name            String
   email           String         @unique
   password        String
-  role            Role           @default(CASHIER)
+  role            String         @default("CASHIER")
   branchId        String?
   branch          Branch?        @relation(fields: [branchId], references: [id])
   createdAt       DateTime       @default(now())
@@ -144,7 +122,7 @@ model PurchaseOrder {
   supplier        Supplier            @relation(fields: [supplierId], references: [id])
   branchId        String?
   branch          Branch?             @relation(fields: [branchId], references: [id])
-  status          POStatus            @default(DRAFT)
+  status          String              @default("DRAFT")
   totalAmount     Float               @default(0)
   notes           String              @default("")
   createdBy       String
@@ -222,14 +200,14 @@ model CashierShift {
   user            User          @relation(fields: [userId], references: [id])
   branchId        String?
   branch          Branch?       @relation(fields: [branchId], references: [id])
-  shiftType       ShiftType     @default(PAGI)
+  shiftType       String        @default("PAGI")
   openedAt        DateTime      @default(now())
   closedAt        DateTime?
   openingBalance  Float         @default(0)
   closingBalance  Float?
   totalSales      Float         @default(0)
   notes           String        @default("")
-  status          ShiftStatus   @default(OPEN)
+  status          String        @default("OPEN")
   transactions    Transaction[]
 }
 

@@ -8,8 +8,7 @@ export default defineConfig({
     seed: "npx tsx prisma/seed.ts",
   },
   datasource: {
-    // For migrations, use DIRECT_URL (port 5432, session mode)
-    // For runtime, prisma.ts uses DATABASE_URL (port 6543, transaction pooler)
-    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
+    // SQLite lokal — satu file dev.db untuk runtime dan migrasi
+    url: process.env["DATABASE_URL"],
   },
 });

@@ -85,7 +85,6 @@ export async function POST(request: NextRequest) {
           rawMaterialId: m.rawMaterialId,
           pricePerUnit: m.pricePerUnit,
         })),
-        skipDuplicates: true,
       })
     }
 
@@ -149,7 +148,6 @@ export async function PUT(request: NextRequest) {
           rawMaterialId: m.rawMaterialId,
           pricePerUnit: m.pricePerUnit,
         })),
-        skipDuplicates: true,
       })
     }
 

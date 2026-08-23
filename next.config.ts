@@ -24,8 +24,6 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: [
-    "pg",
-    "@prisma/adapter-pg",
     "@prisma/client",
     "@prisma/client/runtime",
     "prisma",
