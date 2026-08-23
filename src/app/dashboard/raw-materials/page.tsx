@@ -17,16 +17,21 @@ export default function RawMaterialsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<RawMaterial | null>(null)
   const [form, setForm] = useState({ name: "", unit: "kg", stock: "", costPerUnit: "", minStock: "5", isActive: true })
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const fc = (amount: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
-  const fetchMaterials = async () => {
-    try { const data = await apiFetch<RawMaterial[]>("/api/raw-materials"); setMaterials(data) }
-    catch (err) { console.error(err) }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchMaterials() }, [])
+  useEffect(() => {
+    let active = true
+    apiFetch<RawMaterial[]>("/api/raw-materials")
+      .then((data) => {
+        if (!active) return
+        setMaterials(data)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refreshKey])
 
   const resetForm = () => {
     setForm({ name: "", unit: "kg", stock: "", costPerUnit: "", minStock: "5", isActive: true })
@@ -55,7 +60,7 @@ export default function RawMaterialsPage() {
         return
       }
       success(editing ? "Bahan baku berhasil diupdate" : "Bahan baku berhasil ditambahkan")
-      resetForm(); fetchMaterials()
+      resetForm(); setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menyimpan bahan baku")
     }
@@ -71,7 +76,7 @@ export default function RawMaterialsPage() {
         return
       }
       success("Bahan baku berhasil dihapus")
-      fetchMaterials()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus bahan baku")
     }

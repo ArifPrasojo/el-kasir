@@ -32,6 +32,4 @@ export const EVENT_TYPES = {
   TRANSACTION_CREATED: "transaction:created",
   STOCK_UPDATED: "stock:updated",
   LOW_STOCK_ALERT: "stock:low",
-  SHIFT_OPENED: "shift:opened",
-  SHIFT_CLOSED: "shift:closed",
 } as const

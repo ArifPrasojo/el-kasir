@@ -16,7 +16,10 @@ export async function GET(request: NextRequest) {
 
   const where: Record<string, unknown> = {}
   if (search) {
-    where.name = { contains: search }
+    where.OR = [
+      { name: { contains: search } },
+      { sku: { contains: search } },
+    ]
   }
   if (categoryId) {
     where.categoryId = categoryId
@@ -57,6 +60,7 @@ export async function POST(request: NextRequest) {
     const product = await prisma.product.create({
       data: {
         name,
+        sku: sanitizeString(body.sku) || null,
         description: sanitizeString(body.description),
         price: sanitizeNumber(body.price, 0),
         cost: sanitizeNumber(body.cost, 0),
@@ -92,6 +96,7 @@ export async function PUT(request: NextRequest) {
       where: { id: sanitizeString(body.id) },
       data: {
         name,
+        sku: sanitizeString(body.sku) || null,
         description: sanitizeString(body.description),
         price: sanitizeNumber(body.price, 0),
         cost: sanitizeNumber(body.cost, 0),

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ScrollText, Filter, Info } from "lucide-react"
+import { Info } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 
 interface AuditEntry {
@@ -23,25 +23,26 @@ export default function AuditLogPage() {
   const [filterEntity, setFilterEntity] = useState("")
   const [filterAction, setFilterAction] = useState("")
 
-  const fetchLogs = async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({ page: page.toString(), limit: "20" })
-      if (filterEntity) params.append("entity", filterEntity)
-      if (filterAction) params.append("action", filterAction)
-      const data = await apiFetch<AuditResponse>(`/api/audit?${params}`)
-      if (data && typeof data === "object" && "data" in data) {
-        setLogs(data.data || [])
-        setTotalPages(data.pagination?.totalPages || 1)
-        setTotal(data.pagination?.total || 0)
-      } else {
-        setLogs([])
-      }
-    } catch (err) { console.error(err); setLogs([]) }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchLogs() }, [page, filterEntity, filterAction])
+  useEffect(() => {
+    let active = true
+    const params = new URLSearchParams({ page: page.toString(), limit: "20" })
+    if (filterEntity) params.append("entity", filterEntity)
+    if (filterAction) params.append("action", filterAction)
+    apiFetch<AuditResponse>(`/api/audit?${params}`)
+      .then((data) => {
+        if (!active) return
+        if (data && typeof data === "object" && "data" in data) {
+          setLogs(data.data || [])
+          setTotalPages(data.pagination?.totalPages || 1)
+          setTotal(data.pagination?.total || 0)
+        } else {
+          setLogs([])
+        }
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) { setLogs([]); setLoading(false) } })
+    return () => { active = false }
+  }, [page, filterEntity, filterAction])
 
   const actionBadge = (action: string) => {
     const map: Record<string, string> = {

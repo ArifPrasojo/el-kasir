@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get("dateFrom")
     const dateTo = searchParams.get("dateTo")
     const id = searchParams.get("id")
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "100", 10)))
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
+    const skip = (page - 1) * limit
 
     if (id) {
       const where = isAdmin
@@ -49,6 +52,8 @@ export async function GET(request: NextRequest) {
         _count: { select: { items: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: limit,
+      skip,
     })
 
     return NextResponse.json(transactions)
@@ -70,11 +75,8 @@ export async function POST(request: NextRequest) {
     if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
       return NextResponse.json({ error: "Keranjang tidak boleh kosong" }, { status: 400 })
     }
-    if (!body.totalAmount || body.totalAmount <= 0) {
-      return NextResponse.json({ error: "Total amount tidak valid" }, { status: 400 })
-    }
-    if (body.paymentAmount === undefined || body.paymentAmount < body.totalAmount) {
-      return NextResponse.json({ error: "Jumlah pembayaran tidak mencukupi" }, { status: 400 })
+    if (body.paymentAmount === undefined || typeof body.paymentAmount !== "number" || body.paymentAmount < 0) {
+      return NextResponse.json({ error: "Jumlah pembayaran tidak valid" }, { status: 400 })
     }
 
     // Generate transaction number
@@ -91,12 +93,14 @@ export async function POST(request: NextRequest) {
     // Create transaction with items and update stock
     const transaction = await prisma.$transaction(async (tx) => {
       const items = []
+      let serverTotalAmount = 0
       for (const item of body.items) {
         if (!item.productId || !item.quantity || item.quantity <= 0) {
           throw new Error("Item tidak valid")
         }
         const product = await tx.product.findUnique({ where: { id: item.productId } })
         if (!product) throw new Error(`Produk tidak ditemukan: ${item.productId}`)
+        if (!product.isActive) throw new Error(`Produk tidak aktif: ${product.name}`)
         if (product.stock < item.quantity) throw new Error(`Stok tidak cukup: ${product.name} (tersedia: ${product.stock}, diminta: ${item.quantity})`)
 
         await tx.product.update({
@@ -104,13 +108,22 @@ export async function POST(request: NextRequest) {
           data: { stock: { decrement: item.quantity } },
         })
 
+        // Hitung subtotal dari harga di database — jangan percaya harga dari client
+        const subtotal = product.price * Math.floor(item.quantity)
+        serverTotalAmount += subtotal
+
         items.push({
           productId: item.productId,
           productName: product.name,
-          quantity: item.quantity,
+          quantity: Math.floor(item.quantity),
           price: product.price,
-          subtotal: product.price * item.quantity,
+          subtotal,
         })
+      }
+
+      // Validasi pembayaran berdasarkan total hasil hitung server
+      if (body.paymentAmount < serverTotalAmount) {
+        throw new Error("Jumlah pembayaran tidak mencukupi")
       }
 
       // Update customer spending if customerId provided
@@ -119,8 +132,8 @@ export async function POST(request: NextRequest) {
           await tx.customer.update({
             where: { id: body.customerId },
             data: {
-              totalSpent: { increment: body.totalAmount },
-              totalPoints: { increment: Math.floor(body.totalAmount / 1000) },
+              totalSpent: { increment: serverTotalAmount },
+              totalPoints: { increment: Math.floor(serverTotalAmount / 1000) },
             },
           })
         } catch {
@@ -129,13 +142,19 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const allowedPaymentMethods = ["CASH", "QRIS", "DEBIT", "TRANSFER"]
+      const paymentMethod = allowedPaymentMethods.includes(body.paymentMethod)
+        ? body.paymentMethod
+        : "CASH"
+
       return tx.transaction.create({
         data: {
           transactionNumber,
-          totalAmount: body.totalAmount,
-          paymentAmount: body.paymentAmount,
-          // Hitung changeAmount di server — jangan percaya nilai dari client
-          changeAmount: Math.max(0, body.paymentAmount - body.totalAmount),
+          totalAmount: serverTotalAmount,
+          paymentAmount: paymentMethod === "CASH" ? body.paymentAmount : serverTotalAmount,
+          // Hitung changeAmount di server — jangan percaya nilai dari client (non-CASH = 0)
+          changeAmount: paymentMethod === "CASH" ? Math.max(0, body.paymentAmount - serverTotalAmount) : 0,
+          paymentMethod,
           userId: sessionUser.id,
           branchId: sessionUser.branchId ?? null,
           customerId: body.customerId ?? null,

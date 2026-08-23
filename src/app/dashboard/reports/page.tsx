@@ -22,29 +22,29 @@ export default function ReportsPage() {
   const sessionUser = session?.user as SessionUser | undefined
   const isAdmin = sessionUser?.role === "ADMIN"
 
-  const today = new Date().toISOString().split("T")[0]
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const [today] = useState(() => new Date().toISOString().split("T")[0])
+  const [weekAgo] = useState(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
 
   const [dateFrom, setDateFrom] = useState(weekAgo)
   const [dateTo, setDateTo] = useState(today)
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const fc = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
-  const fetchReport = async () => {
-    setLoading(true)
-    try {
-      const data = await apiFetch<ReportData>(`/api/reports?type=report&dateFrom=${dateFrom}&dateTo=${dateTo}`)
-      setReport(data)
-    } catch (err) {
-      console.error("Failed to fetch report:", err)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchReport() }, [dateFrom, dateTo])
+  useEffect(() => {
+    let active = true
+    apiFetch<ReportData>(`/api/reports?type=report&dateFrom=${dateFrom}&dateTo=${dateTo}`)
+      .then((data) => {
+        if (!active) return
+        setReport(data)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [dateFrom, dateTo, refreshKey])
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -72,7 +72,7 @@ export default function ReportsPage() {
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
             className="block w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
         </div>
-        <button onClick={fetchReport} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+        <button onClick={() => setRefreshKey((k) => k + 1)} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
           <Calendar className="w-4 h-4" /> Tampilkan
         </button>
       </div>

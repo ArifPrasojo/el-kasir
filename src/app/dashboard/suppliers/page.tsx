@@ -33,20 +33,23 @@ export default function SuppliersPage() {
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const fetchAll = async () => {
-    try {
-      const [suppliersData, materialsData] = await Promise.all([
-        apiFetch<Supplier[]>("/api/suppliers"),
-        apiFetch<RawMaterial[]>("/api/raw-materials"),
-      ])
-      setSuppliers(suppliersData)
-      setRawMaterials(materialsData)
-    } catch (err) { console.error(err) }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      apiFetch<Supplier[]>("/api/suppliers"),
+      apiFetch<RawMaterial[]>("/api/raw-materials"),
+    ])
+      .then(([suppliersData, materialsData]) => {
+        if (!active) return
+        setSuppliers(suppliersData)
+        setRawMaterials(materialsData)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refreshKey])
 
   const resetForm = () => {
     setForm(emptyForm); setMaterialRows([]); setEditing(null)
@@ -115,7 +118,7 @@ export default function SuppliersPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || "Terjadi kesalahan"); toastError(data.error || "Gagal menyimpan supplier"); return }
       success(editing ? "Supplier berhasil diupdate" : "Supplier berhasil ditambahkan")
-      resetForm(); fetchAll()
+      resetForm(); setRefreshKey((k) => k + 1)
     } catch { setError("Gagal menyimpan supplier"); toastError("Gagal menyimpan supplier") }
     finally { setSubmitting(false) }
   }
@@ -127,7 +130,7 @@ export default function SuppliersPage() {
       const data = await res.json()
       if (!res.ok) { toastError(data.error || "Gagal menghapus supplier"); return }
       success("Supplier berhasil dihapus")
-      fetchAll()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus supplier")
     }
@@ -203,7 +206,7 @@ export default function SuppliersPage() {
                   <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                     <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-400">Belum ada bahan baku</p>
-                    <p className="text-xs text-gray-400">Klik "Tambah" untuk menambahkan</p>
+                    <p className="text-xs text-gray-400">Klik &quot;Tambah&quot; untuk menambahkan</p>
                   </div>
                 ) : (
                   <div className="space-y-2">

@@ -24,21 +24,23 @@ export default function UsersPage() {
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  const fetchAll = async () => {
-    try {
-      const [usersData, branchesData] = await Promise.all([
-        apiFetch<UserData[]>("/api/users"),
-        apiFetch<Branch[]>("/api/branches"),
-      ])
-      setUsers(usersData)
-      setBranches(branchesData.filter((b) => b.isActive))
-    } catch (err) {
-      console.error(err)
-    }
-    setLoading(false)
-  }
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      apiFetch<UserData[]>("/api/users"),
+      apiFetch<Branch[]>("/api/branches"),
+    ])
+      .then(([usersData, branchesData]) => {
+        if (!active) return
+        setUsers(usersData)
+        setBranches(branchesData.filter((b) => b.isActive))
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refreshKey])
 
   const resetForm = () => {
     setForm(emptyForm)
@@ -88,7 +90,7 @@ export default function UsersPage() {
       }
       success(editing ? "Pengguna berhasil diupdate" : "Pengguna berhasil ditambahkan")
       resetForm()
-      fetchAll()
+      setRefreshKey((k) => k + 1)
     } catch {
       setError("Gagal menyimpan pengguna")
       toastError("Gagal menyimpan pengguna")
@@ -107,7 +109,7 @@ export default function UsersPage() {
         return
       }
       success("Pengguna berhasil dihapus")
-      fetchAll()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus pengguna")
     }

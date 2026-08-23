@@ -10,6 +10,7 @@ interface Product {
   id: string
   name: string
   description: string
+  sku?: string | null
   price: number
   cost: number
   stock: number
@@ -36,37 +37,39 @@ export default function ProductsPage() {
   const [filterCategory, setFilterCategory] = useState("")
 
   const [form, setForm] = useState({
-    name: "", description: "", price: "", cost: "", stock: "", categoryId: "", isActive: true,
+    name: "", description: "", sku: "", price: "", cost: "", stock: "", categoryId: "", isActive: true,
   })
 
-  const fetchData = async () => {
-    try {
-      const [products, categories] = await Promise.all([
-        apiFetch<Product[]>(`/api/products?search=${search}&categoryId=${filterCategory}`),
-        apiFetch<Category[]>("/api/categories"),
-      ])
-      setProducts(products)
-      setCategories(categories)
-    } catch (err) {
-      console.error("Failed to fetch data:", err)
-    }
-    setLoading(false)
-  }
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => { fetchData() }, [search, filterCategory])
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      apiFetch<Product[]>(`/api/products?search=${search}&categoryId=${filterCategory}`),
+      apiFetch<Category[]>("/api/categories"),
+    ])
+      .then(([products, categories]) => {
+        if (!active) return
+        setProducts(products)
+        setCategories(categories)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [search, filterCategory, refreshKey])
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
   const resetForm = () => {
-    setForm({ name: "", description: "", price: "", cost: "", stock: "", categoryId: categories[0]?.id || "", isActive: true })
+    setForm({ name: "", description: "", sku: "", price: "", cost: "", stock: "", categoryId: categories[0]?.id || "", isActive: true })
     setEditing(null)
     setShowForm(false)
   }
 
   const handleEdit = (product: Product) => {
     setForm({
-      name: product.name, description: product.description,
+      name: product.name, description: product.description, sku: product.sku || "",
       price: product.price.toString(), cost: product.cost.toString(),
       stock: product.stock.toString(), categoryId: product.categoryId,
       isActive: product.isActive,
@@ -91,7 +94,7 @@ export default function ProductsPage() {
       }
       success(editing ? "Produk berhasil diupdate" : "Produk berhasil ditambahkan")
       resetForm()
-      fetchData()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menyimpan produk")
     }
@@ -107,7 +110,7 @@ export default function ProductsPage() {
         return
       }
       success("Produk berhasil dihapus")
-      fetchData()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus produk")
     }
@@ -157,6 +160,11 @@ export default function ProductsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none" rows={2} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SKU / Barcode <span className="text-xs font-normal text-gray-400">(opsional — untuk scanner)</span></label>
+                <input type="text" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                  className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Contoh: 8991234567890" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

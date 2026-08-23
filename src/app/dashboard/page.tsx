@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import {
-  DollarSign, ShoppingCart, Package, AlertTriangle, TrendingUp,
+  DollarSign, ShoppingCart, AlertTriangle, TrendingUp,
   Calendar, Clock, BarChart3, ArrowUpRight, ArrowDownRight, Layers, MapPin, User
 } from "lucide-react"
 import {

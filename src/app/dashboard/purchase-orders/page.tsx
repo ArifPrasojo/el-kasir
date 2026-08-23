@@ -47,16 +47,20 @@ export default function PurchaseOrdersPage() {
 
   const fc = (v: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(v)
 
-  const fetchPOs = async () => {
-    try {
-      const params = filterStatus ? `?status=${filterStatus}` : ""
-      const data = await apiFetch<PO[]>(`/api/purchase-orders${params}`)
-      setPos(data)
-    } catch (err) { console.error(err) }
-    setLoading(false)
-  }
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => { fetchPOs() }, [filterStatus])
+  useEffect(() => {
+    let active = true
+    const params = filterStatus ? `?status=${filterStatus}` : ""
+    apiFetch<PO[]>(`/api/purchase-orders${params}`)
+      .then((data) => {
+        if (!active) return
+        setPos(data)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [filterStatus, refreshKey])
 
   useEffect(() => {
     apiFetch<Supplier[]>("/api/suppliers").then((data) =>
@@ -137,7 +141,7 @@ export default function PurchaseOrdersPage() {
       // Reset form
       setShowCreate(false); setFormSupplier(""); setFormNotes("")
       setFormItems([]); setFormError("")
-      fetchPOs()
+      setRefreshKey((k) => k + 1)
     } catch { setFormError("Terjadi kesalahan, coba lagi"); toastError("Gagal membuat Purchase Order") }
     finally { setSubmitting(false) }
   }
@@ -157,7 +161,7 @@ export default function PurchaseOrdersPage() {
       }
       const statusLabel = STATUS_MAP[status]?.label || status
       success(`Status PO berhasil diubah ke "${statusLabel}"`)
-      fetchPOs()
+      setRefreshKey((k) => k + 1)
       if (detail?.id === id) {
         const updated = await apiFetch<PODetail>(`/api/purchase-orders?id=${id}`)
         setDetail(updated)

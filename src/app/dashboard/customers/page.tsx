@@ -25,19 +25,22 @@ export default function CustomersPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Customer | null>(null)
   const [form, setForm] = useState({ name: "", phone: "", email: "" })
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const fc = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
-  const fetchCustomers = async () => {
-    try {
-      const data = await apiFetch<Customer[]>("/api/customers")
-      setCustomers(data)
-    } catch (err) { console.error(err) }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchCustomers() }, [])
+  useEffect(() => {
+    let active = true
+    apiFetch<Customer[]>("/api/customers")
+      .then((data) => {
+        if (!active) return
+        setCustomers(data)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refreshKey])
 
   const resetForm = () => { setForm({ name: "", phone: "", email: "" }); setEditing(null); setShowForm(false) }
 
@@ -59,7 +62,7 @@ export default function CustomersPage() {
         return
       }
       success(editing ? "Customer berhasil diupdate" : "Customer berhasil ditambahkan")
-      resetForm(); fetchCustomers()
+      resetForm(); setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menyimpan customer")
     }
@@ -75,7 +78,7 @@ export default function CustomersPage() {
         return
       }
       success("Customer berhasil dihapus")
-      fetchCustomers()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus customer")
     }

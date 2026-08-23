@@ -25,7 +25,6 @@ model Branch {
   suppliers       Supplier[]
   customers       Customer[]
   purchaseOrders  PurchaseOrder[]
-  cashierShifts   CashierShift[]
 }
 
 model User {
@@ -39,7 +38,6 @@ model User {
   createdAt       DateTime       @default(now())
   transactions    Transaction[]
   purchaseOrders  PurchaseOrder[]
-  cashierShifts   CashierShift[]
   auditLogs       AuditLog[]
 }
 
@@ -55,6 +53,8 @@ model Product {
   id               String            @id @default(cuid())
   name             String
   description      String            @default("")
+  /// SKU / kode barcode produk (opsional, unik)
+  sku              String?           @unique
   price            Float
   cost             Float             @default(0)
   stock            Int               @default(0)
@@ -75,14 +75,14 @@ model Transaction {
   totalAmount       Float
   paymentAmount     Float
   changeAmount      Float
+  /// Metode pembayaran: CASH | QRIS | DEBIT | TRANSFER
+  paymentMethod     String            @default("CASH")
   userId            String
   user              User              @relation(fields: [userId], references: [id])
   branchId          String?
   branch            Branch?           @relation(fields: [branchId], references: [id])
   customerId        String?
   customer          Customer?         @relation(fields: [customerId], references: [id])
-  shiftId           String?
-  shift             CashierShift?     @relation(fields: [shiftId], references: [id])
   createdAt         DateTime          @default(now())
   items             TransactionItem[]
 }
@@ -192,23 +192,6 @@ model LoyaltyRule {
   pointsPerRupiah   Float   @default(0.01)
   minPurchase       Float   @default(0)
   isActive          Boolean @default(true)
-}
-
-model CashierShift {
-  id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id])
-  branchId        String?
-  branch          Branch?       @relation(fields: [branchId], references: [id])
-  shiftType       String        @default("PAGI")
-  openedAt        DateTime      @default(now())
-  closedAt        DateTime?
-  openingBalance  Float         @default(0)
-  closingBalance  Float?
-  totalSales      Float         @default(0)
-  notes           String        @default("")
-  status          String        @default("OPEN")
-  transactions    Transaction[]
 }
 
 model AuditLog {

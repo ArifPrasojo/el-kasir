@@ -10,7 +10,7 @@ function redirect(request: NextRequest, path: string) {
   const url = request.nextUrl.clone()
   url.pathname = path
   url.search = ""
-  return NextResponse.redirect(url)
+  return NextResponse.redirect(new URL(url.toString(), request.url))
 }
 
 export async function middleware(request: NextRequest) {
@@ -29,11 +29,6 @@ export async function middleware(request: NextRequest) {
   // Belum login → redirect ke login
   if (!token) {
     return redirect(request, "/login")
-  }
-
-  // Fitur shift dihapus → redirect ke dashboard
-  if (pathname.startsWith("/dashboard/shifts")) {
-    return redirect(request, "/dashboard")
   }
 
   // Halaman khusus admin

@@ -1,18 +1,18 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X, UserCheck, MapPin } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { useSession } from "next-auth/react"
 
 interface Product {
-  id: string; name: string; price: number; stock: number; category: { id: string; name: string }
+  id: string; name: string; price: number; stock: number; sku?: string | null; category: { id: string; name: string }
 }
 interface Category { id: string; name: string }
 interface Customer { id: string; name: string; phone: string; totalPoints: number }
 interface CartItem { product: Product; quantity: number }
 interface ReceiptData {
-  transactionNumber: string; totalAmount: number; paymentAmount: number
+  transactionNumber: string; totalAmount: number; paymentAmount: number; paymentMethod: string;
   changeAmount: number; items: CartItem[]; createdAt: string
   userName: string; branchName?: string; customerName?: string
 }
@@ -38,9 +38,12 @@ export default function POSPage() {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [showCart, setShowCart] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState("CASH")
 
   const receiptRef = useRef<HTMLDivElement>(null)
   const customerRef = useRef<HTMLDivElement>(null)
+  const scanBuffer = useRef<string>("")
+  const scanTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const fc = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
@@ -57,16 +60,17 @@ export default function POSPage() {
     }
   }
 
-  const fetchProducts = async () => {
-    try {
-      const data = await apiFetch<Product[]>(
-        `/api/products?search=${encodeURIComponent(search)}&categoryId=${filterCategory}&activeOnly=true`
-      )
-      setProducts(data)
-    } catch (err) { console.error(err) }
-  }
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => { fetchProducts() }, [search, filterCategory])
+  useEffect(() => {
+    let active = true
+    apiFetch<Product[]>(
+      `/api/products?search=${encodeURIComponent(search)}&categoryId=${filterCategory}&activeOnly=true`
+    )
+      .then((data) => { if (active) setProducts(data) })
+      .catch(console.error)
+    return () => { active = false }
+  }, [search, filterCategory, refreshKey])
 
   useEffect(() => {
     apiFetch<Category[]>("/api/categories").then(setCategories).catch(console.error)
@@ -83,12 +87,7 @@ export default function POSPage() {
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
-  const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.phone.includes(customerSearch)
-  ).slice(0, 8)
-
-  const addToCart = (product: Product) => {
+  const addToCart = useCallback((product: Product) => {
     if (product.stock <= 0) return
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id)
@@ -98,7 +97,36 @@ export default function POSPage() {
       }
       return [...prev, { product, quantity: 1 }]
     })
-  }
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
+      if (isInput) return
+
+      if (e.key === "Enter" && scanBuffer.current.length > 0) {
+        const scannedCode = scanBuffer.current
+        scanBuffer.current = ""
+        const found = products.find((p) => p.sku === scannedCode)
+        if (found) addToCart(found)
+        return
+      }
+
+      if (e.key.length === 1) {
+        scanBuffer.current += e.key
+        if (scanTimeout.current) clearTimeout(scanTimeout.current)
+        scanTimeout.current = setTimeout(() => { scanBuffer.current = "" }, 100)
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [products, addToCart])
+
+  const filteredCustomers = customers.filter((c) =>
+    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    c.phone.includes(customerSearch)
+  ).slice(0, 8)
 
   const updateQuantity = (productId: string, delta: number) => {
     setCart((prev) =>
@@ -127,8 +155,8 @@ export default function POSPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: cart.map((item) => ({ productId: item.product.id, quantity: item.quantity })),
-          totalAmount,
           paymentAmount: parseFloat(paymentAmount || "0"),
+          paymentMethod,
           customerId: selectedCustomer?.id ?? null,
         }),
       })
@@ -142,6 +170,7 @@ export default function POSPage() {
         transactionNumber: data.transactionNumber,
         totalAmount: data.totalAmount,
         paymentAmount: data.paymentAmount,
+        paymentMethod: data.paymentMethod || "CASH",
         changeAmount: data.changeAmount,
         items: cart,
         createdAt: data.createdAt,
@@ -156,7 +185,7 @@ export default function POSPage() {
       setSelectedCustomer(null)
       setCustomerSearch("")
       setShowCart(false)
-      fetchProducts()
+      setRefreshKey((k) => k + 1)
       apiFetch<Customer[]>("/api/customers").then(setCustomers).catch(console.error)
     } catch (err) {
       console.error("Checkout error:", err)
@@ -274,29 +303,62 @@ export default function POSPage() {
           <span className="text-lg sm:text-xl font-bold text-gray-800">{fc(totalAmount)}</span>
         </div>
 
+        {/* Payment method selector */}
         <div>
-          <label className="text-sm text-gray-500">Bayar</label>
-          <div className="relative mt-1">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">
-              Rp
-            </span>
-            {/* input TIDAK boleh punya key yang berubah — harus stabil */}
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              value={paymentDisplay}
-              onChange={handlePaymentChange}
-              className="w-full border rounded-lg pl-11 pr-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-right font-semibold text-lg"
-              placeholder="0"
-            />
+          <label className="text-sm text-gray-500">Metode Pembayaran</label>
+          <div className="grid grid-cols-4 gap-1 mt-1">
+            {["CASH", "QRIS", "DEBIT", "TRANSFER"].map((method) => (
+              <button
+                key={method}
+                onClick={() => {
+                  setPaymentMethod(method)
+                  if (method !== "CASH") { setPaymentAmount(totalAmount.toString()); setPaymentDisplay(new Intl.NumberFormat("id-ID").format(totalAmount)) }
+                }}
+                className={`py-1.5 px-1 rounded-lg text-xs font-medium border transition-colors ${
+                  paymentMethod === method
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"
+                }`}
+              >
+                {method}
+              </button>
+            ))}
           </div>
         </div>
 
-        {parseFloat(paymentAmount || "0") >= totalAmount && totalAmount > 0 && (
-          <div className="flex justify-between items-center bg-green-50 rounded-lg px-3 py-2 text-green-700">
-            <span className="font-medium text-sm">Kembalian</span>
-            <span className="text-lg font-bold">{fc(changeAmount)}</span>
+        {paymentMethod === "CASH" && (
+          <div>
+            <label className="text-sm text-gray-500">Bayar</label>
+            <div className="relative mt-1">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">
+                Rp
+              </span>
+              {/* input TIDAK boleh punya key yang berubah — harus stabil */}
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={paymentDisplay}
+                onChange={handlePaymentChange}
+                className="w-full border rounded-lg pl-11 pr-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-right font-semibold text-lg"
+                placeholder="0"
+              />
+            </div>
+          </div>
+        )}
+
+        {(paymentMethod !== "CASH" || (parseFloat(paymentAmount || "0") >= totalAmount && totalAmount > 0)) && (
+          <div className={`rounded-lg px-3 py-2 ${paymentMethod === "CASH" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
+            {paymentMethod === "CASH" ? (
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-sm">Kembalian</span>
+                <span className="text-lg font-bold">{fc(changeAmount)}</span>
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-center">
+                Dibayar via {paymentMethod} — {fc(totalAmount)}
+              </p>
+            )}
           </div>
         )}
 
@@ -439,11 +501,19 @@ export default function POSPage() {
                   <span>TOTAL</span><span>{fc(receiptData.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-600">
-                  <span>Bayar</span><span>{fc(receiptData.paymentAmount)}</span>
+                  <span>Metode</span>
+                  <span className="font-medium">{receiptData.paymentMethod}</span>
                 </div>
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Kembali</span><span>{fc(receiptData.changeAmount)}</span>
-                </div>
+                {receiptData.paymentMethod === "CASH" && (
+                  <>
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Bayar</span><span>{fc(receiptData.paymentAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Kembali</span><span>{fc(receiptData.changeAmount)}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="border-t border-dashed border-gray-300 my-3" />

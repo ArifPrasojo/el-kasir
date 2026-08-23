@@ -34,8 +34,7 @@ Sistem Point of Sale (POS) berbasis web yang dibangun dengan Next.js, TypeScript
 | **Recharts** | 3.x | Chart & analytics |
 | **Lucide React** | 1.x | Icon library |
 | **bcryptjs** | 3.x | Password hashing |
-| **ioredis** | 5.x | Redis untuk rate limiting & caching |
-| **AWS S3 SDK** | 3.x | Upload gambar produk (opsional) |
+| **ioredis** | 5.x | Redis untuk rate limiting & caching (opsional) |
 
 ---
 
@@ -314,7 +313,7 @@ el-kasir/
 │   │   │   ├── reports/               # Laporan & dashboard (scoped per user)
 │   │   │   ├── suppliers/             # Supplier & SupplierMaterial
 │   │   │   ├── transactions/          # Transaksi (scoped per user)
-│   │   │   ├── upload/                # Upload ke S3
+│   │   │   ├── upload/                # Upload gambar lokal (public/uploads)
 │   │   │   └── users/                 # Manajemen pengguna
 │   │   ├── dashboard/
 │   │   │   ├── audit/
@@ -478,13 +477,13 @@ npx prisma db seed
 
 ### Versi Terbaru
 
-**Migrasi ke SQLite Lokal**
+**Migrasi ke SQLite Lokal & Cleanup**
 - Mengganti PostgreSQL (Supabase) dengan SQLite lokal (`dev.db`)
-- Menggunakan driver adapter `@prisma/adapter-better-sqlite3`
-- Menghapus ketergantungan paket `pg` dan `@prisma/adapter-pg`
-- Menghapus variabel `DIRECT_URL` dari konfigurasi
+- Menghitung ulang total transaksi di server (mencegah manipulasi harga dari client)
+- Menghapus sisa-sisa fitur Shift (model `CashierShift`, rute API, dan folder UI terkait)
+- Mengubah upload file dari AWS S3 menjadi sistem penyimpanan lokal (`public/uploads`)
 - Mengubah tipe `Enum` pada schema menjadi `String` biasa agar kompatibel dengan SQLite
-- Sistem berjalan 100% offline dan tidak membutuhkan server database eksternal
+- Sistem berjalan 100% offline tanpa ketergantungan server cloud eksternal
 
 **Fitur Shift dihapus**
 - Menu Shift Kasir tidak lagi tersedia

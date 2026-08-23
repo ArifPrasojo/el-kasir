@@ -33,23 +33,25 @@ export default function TransactionsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
 
+  const [refreshKey, setRefreshKey] = useState(0)
+
   const fc = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount)
 
-  const fetchTransactions = async () => {
+  useEffect(() => {
+    let active = true
     const params = new URLSearchParams()
     if (dateFrom) params.append("dateFrom", dateFrom)
     if (dateTo) params.append("dateTo", dateTo)
-    try {
-      const data = await apiFetch<Transaction[]>(`/api/transactions?${params}`)
-      setTransactions(data)
-    } catch (err) {
-      console.error("Failed to fetch transactions:", err)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchTransactions() }, [dateFrom, dateTo])
+    apiFetch<Transaction[]>(`/api/transactions?${params}`)
+      .then((data) => {
+        if (!active) return
+        setTransactions(data)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [dateFrom, dateTo, refreshKey])
 
   const viewDetail = async (id: string) => {
     try {
@@ -86,7 +88,7 @@ export default function TransactionsPage() {
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
             className="block w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
         </div>
-        <button onClick={fetchTransactions} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+        <button onClick={() => setRefreshKey((k) => k + 1)} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
           <Calendar className="w-4 h-4" /> Filter
         </button>
       </div>

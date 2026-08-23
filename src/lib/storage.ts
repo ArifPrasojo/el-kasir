@@ -1,37 +1,33 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { writeFile, mkdir } from "fs/promises"
+import { join } from "path"
+import { existsSync } from "fs"
 
-const s3Client = process.env.S3_ENDPOINT
-  ? new S3Client({
-      region: "auto",
-      endpoint: process.env.S3_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY || "",
-        secretAccessKey: process.env.S3_SECRET_KEY || "",
-      },
-    })
-  : null
-
-export async function getUploadUrl(
-  fileName: string,
-  contentType: string,
+/**
+ * Menyimpan file secara lokal ke folder public/uploads
+ * @param file File dari FormData
+ * @param folder Subfolder penyimpanan (default: "products")
+ * @returns Path relatif URL gambar yang bisa diakses via browser
+ */
+export async function uploadFile(
+  file: File,
   folder: string = "products"
-): Promise<{ uploadUrl: string; fileUrl: string } | null> {
-  if (!s3Client || !process.env.S3_BUCKET) {
-    console.warn("S3 not configured - file upload disabled")
-    return null
+): Promise<string> {
+  const bytes = await file.arrayBuffer()
+  const buffer = Buffer.from(bytes)
+
+  const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+  const fileName = `${Date.now()}-${sanitizedFileName}`
+  
+  // Arahkan ke public/uploads
+  const uploadDir = join(process.cwd(), "public", "uploads", folder)
+  
+  if (!existsSync(uploadDir)) {
+    await mkdir(uploadDir, { recursive: true })
   }
 
-  const key = `${folder}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+  const filePath = join(uploadDir, fileName)
+  await writeFile(filePath, buffer)
 
-  const command = new PutObjectCommand({
-    Bucket: process.env.S3_BUCKET,
-    Key: key,
-    ContentType: contentType,
-  })
-
-  const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 })
-  const fileUrl = `${process.env.S3_ENDPOINT}/${process.env.S3_BUCKET}/${key}`
-
-  return { uploadUrl, fileUrl }
+  // Kembalikan public url path
+  return `/uploads/${folder}/${fileName}`
 }

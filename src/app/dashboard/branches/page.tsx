@@ -20,20 +20,23 @@ export default function BranchesPage() {
   const [editing, setEditing] = useState<Branch | null>(null)
   const [form, setForm] = useState({ name: "", address: "", phone: "", isActive: true })
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const fetchData = async () => {
-    try {
-      const [branchData, userData] = await Promise.all([
-        apiFetch<Branch[]>("/api/branches"),
-        apiFetch<User[]>("/api/users"),
-      ])
-      setBranches(branchData)
-      setAllUsers(userData)
-    } catch (err) { console.error(err) }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      apiFetch<Branch[]>("/api/branches"),
+      apiFetch<User[]>("/api/users"),
+    ])
+      .then(([branchData, userData]) => {
+        if (!active) return
+        setBranches(branchData)
+        setAllUsers(userData)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refreshKey])
 
   const resetForm = () => {
     setForm({ name: "", address: "", phone: "", isActive: true })
@@ -62,7 +65,7 @@ export default function BranchesPage() {
         return
       }
       success(editing ? "Cabang berhasil diupdate" : "Cabang berhasil ditambahkan")
-      resetForm(); fetchData()
+      resetForm(); setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menyimpan cabang")
     }
@@ -78,7 +81,7 @@ export default function BranchesPage() {
         return
       }
       success("Cabang berhasil dihapus")
-      fetchData()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus cabang")
     }

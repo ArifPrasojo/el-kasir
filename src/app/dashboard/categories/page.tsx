@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
-import { Plus, Pencil, Trash2, X, Check } from "lucide-react"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { useToast } from "@/components/Toast"
 
@@ -22,18 +22,19 @@ export default function CategoriesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Category | null>(null)
   const [form, setForm] = useState({ name: "", description: "" })
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const fetchCategories = async () => {
-    try {
-      const data = await apiFetch<Category[]>("/api/categories")
-      setCategories(data)
-    } catch (err) {
-      console.error("Failed to fetch categories:", err)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchCategories() }, [])
+  useEffect(() => {
+    let active = true
+    apiFetch<Category[]>("/api/categories")
+      .then((data) => {
+        if (!active) return
+        setCategories(data)
+        setLoading(false)
+      })
+      .catch((err) => { console.error(err); if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refreshKey])
 
   const resetForm = () => {
     setForm({ name: "", description: "" })
@@ -62,7 +63,7 @@ export default function CategoriesPage() {
       }
       success(editing ? "Kategori berhasil diupdate" : "Kategori berhasil ditambahkan")
       resetForm()
-      fetchCategories()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menyimpan kategori")
     }
@@ -78,7 +79,7 @@ export default function CategoriesPage() {
         return
       }
       success("Kategori berhasil dihapus")
-      fetchCategories()
+      setRefreshKey((k) => k + 1)
     } catch {
       toastError("Gagal menghapus kategori")
     }
